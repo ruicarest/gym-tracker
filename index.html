@@ -1,0 +1,107 @@
+<!doctype html>
+<html lang="pt">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+  <meta name="theme-color" content="#0e1116" />
+  <title>Gym Tracker</title>
+  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Ctext y='.9em' font-size='90'%3E%F0%9F%8F%8B%EF%B8%8F%3C/text%3E%3C/svg%3E" />
+  <link rel="stylesheet" href="styles.css" />
+</head>
+<body>
+  <header class="app-header">
+    <h1>🏋️ Gym Tracker</h1>
+    <span id="backend-badge" class="badge" title="Onde os dados estão guardados">…</span>
+  </header>
+
+  <main>
+    <!-- ===================== NOVO TREINO ===================== -->
+    <section id="view-log" class="view">
+      <form id="workout-form">
+        <div class="row">
+          <label class="field">
+            <span>Data</span>
+            <input type="date" id="workout-date" required />
+          </label>
+          <label class="field">
+            <span>Tipo de treino</span>
+            <input list="type-options" id="workout-type" placeholder="Push, Pull, Pernas…" />
+            <datalist id="type-options">
+              <option value="Push"></option>
+              <option value="Pull"></option>
+              <option value="Pernas"></option>
+              <option value="Upper"></option>
+              <option value="Lower"></option>
+              <option value="Full body"></option>
+              <option value="Cardio"></option>
+            </datalist>
+          </label>
+        </div>
+
+        <div id="exercises" class="exercises"></div>
+
+        <button type="button" id="add-exercise" class="btn ghost full">+ Adicionar exercício</button>
+
+        <label class="field">
+          <span>Notas (opcional)</span>
+          <textarea id="workout-notes" rows="2" placeholder="Como correu, sensações, etc."></textarea>
+        </label>
+
+        <button type="submit" class="btn primary full big">Guardar treino</button>
+      </form>
+    </section>
+
+    <!-- ===================== HISTÓRICO ===================== -->
+    <section id="view-history" class="view" hidden>
+      <div id="history-summary" class="summary-cards"></div>
+      <div id="history-list" class="history-list"></div>
+      <p id="history-empty" class="empty" hidden>Ainda não há treinos registados. Vai à aba <strong>Treinar</strong> para começar. 💪</p>
+    </section>
+
+    <!-- ===================== PROGRESSO ===================== -->
+    <section id="view-progress" class="view" hidden>
+      <label class="field">
+        <span>Exercício</span>
+        <select id="progress-exercise"></select>
+      </label>
+      <div id="progress-stats" class="summary-cards"></div>
+      <div id="progress-chart" class="chart-wrap"></div>
+      <div id="progress-table"></div>
+      <p id="progress-empty" class="empty" hidden>Sem dados suficientes para este exercício.</p>
+    </section>
+  </main>
+
+  <nav class="tabbar">
+    <button class="tab active" data-view="view-log"><span class="ico">➕</span>Treinar</button>
+    <button class="tab" data-view="view-history"><span class="ico">📅</span>Histórico</button>
+    <button class="tab" data-view="view-progress"><span class="ico">📈</span>Progresso</button>
+  </nav>
+
+  <div id="toast" class="toast" hidden></div>
+
+  <template id="exercise-template">
+    <div class="exercise-card">
+      <div class="exercise-head">
+        <input class="ex-name" list="exercise-options" placeholder="Nome do exercício (ex: Supino)" />
+        <button type="button" class="icon-btn remove-exercise" title="Remover exercício">✕</button>
+      </div>
+      <div class="sets"></div>
+      <button type="button" class="btn ghost sm add-set">+ série</button>
+    </div>
+  </template>
+
+  <template id="set-template">
+    <div class="set-row">
+      <span class="set-index">1</span>
+      <label class="mini"><input type="number" class="set-weight" inputmode="decimal" step="0.5" min="0" placeholder="0" /><span>kg</span></label>
+      <span class="times">×</span>
+      <label class="mini"><input type="number" class="set-reps" inputmode="numeric" step="1" min="0" placeholder="0" /><span>reps</span></label>
+      <button type="button" class="icon-btn remove-set" title="Remover série">✕</button>
+    </div>
+  </template>
+
+  <datalist id="exercise-options"></datalist>
+
+  <script type="module" src="app.js"></script>
+</body>
+</html>
