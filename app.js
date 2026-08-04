@@ -252,6 +252,10 @@ function buildExPicker(node, kind, dataName) {
   });
   newInput.addEventListener('input', persistActive);
   node.querySelector('.pick-image').addEventListener('click', () => openImagePicker(node));
+  node.querySelector('.ex-thumb').addEventListener('click', () => {
+    const src = node.querySelector('.ex-thumb').getAttribute('src');
+    if (src) openExerciseDetail(src, exNameOf(node));
+  });
   updateCardImage(node);
 }
 
@@ -512,7 +516,7 @@ async function renderHistory() {
 function exerciseLine(g, partner) {
   const icon = g.kind === 'cardio' ? '🏃' : '🏋️';
   const lead = g.exercise.image_url
-    ? `<img class="ex-thumb-sm" src="${escapeHtml(g.exercise.image_url)}" alt="" />`
+    ? `<img class="ex-thumb-sm" src="${escapeHtml(g.exercise.image_url)}" data-name="${escapeHtml(g.exercise.name)}" alt="" />`
     : icon;
   if (g.kind === 'cardio') {
     const r = g.rows[0] || {};
@@ -851,6 +855,58 @@ function updateCardImage(card) {
 $('#img-close').addEventListener('click', closeImagePicker);
 $('#img-overlay').addEventListener('click', (e) => { if (e.target.id === 'img-overlay') closeImagePicker(); });
 $('#img-search').addEventListener('input', (e) => renderImageResults(e.target.value));
+
+// ------------------------------------------------------------
+//  Detalhe do exercício (foto expandida + instruções)
+// ------------------------------------------------------------
+const MUSCLE_PT = {
+  abdominals: 'abdominais', abductors: 'abdutores', adductors: 'adutores', biceps: 'bíceps',
+  calves: 'gémeos', chest: 'peito', forearms: 'antebraços', glutes: 'glúteos',
+  hamstrings: 'isquiotibiais', lats: 'dorsais', 'lower back': 'lombar', 'middle back': 'costas',
+  neck: 'pescoço', quadriceps: 'quadríceps', shoulders: 'ombros', traps: 'trapézios', triceps: 'tríceps',
+};
+const dbIdFromImage = (url) => { const s = (url || '').split('/exercises/')[1]; return s ? s.split('/')[0] : null; };
+
+async function openExerciseDetail(imageUrl, name) {
+  const overlay = $('#detail-overlay'), body = $('#detail-body');
+  $('#detail-title').textContent = name || 'Exercício';
+  body.innerHTML = '<p class="img-status">A carregar…</p>';
+  overlay.hidden = false;
+  await loadExerciseDb();
+  const id = dbIdFromImage(imageUrl);
+  const ex = id ? exerciseDb.find((e) => e.id === id) : null;
+
+  const imgUrls = ex?.images?.length ? ex.images.map((p) => IMG_BASE + p) : (imageUrl ? [imageUrl] : []);
+  let html = '';
+  if (imgUrls.length) html += `<div class="detail-imgs">${imgUrls.map((u) => `<img src="${escapeHtml(u)}" alt="" />`).join('')}</div>`;
+  if (ex) {
+    const chips = [
+      ...(ex.primaryMuscles || []).map((m) => `<span class="detail-chip muscle">${escapeHtml(MUSCLE_PT[m] || m)}</span>`),
+      ex.equipment ? `<span class="detail-chip">${escapeHtml(ex.equipment)}</span>` : '',
+    ].filter(Boolean).join('');
+    if (chips) html += `<div class="detail-meta">${chips}</div>`;
+    if (ex.instructions?.length) {
+      html += `<p class="detail-note">Como fazer (em inglês, da base de exercícios):</p>`;
+      html += `<ol class="detail-steps">${ex.instructions.map((s) => `<li>${escapeHtml(s)}</li>`).join('')}</ol>`;
+    }
+  }
+  if (!ex || !ex.instructions?.length) html += `<p class="img-status">Sem descrição disponível para este exercício.</p>`;
+  body.innerHTML = html;
+}
+function closeExerciseDetail() { $('#detail-overlay').hidden = true; }
+$('#detail-close').addEventListener('click', closeExerciseDetail);
+$('#detail-overlay').addEventListener('click', (e) => { if (e.target.id === 'detail-overlay') closeExerciseDetail(); });
+
+function exNameOf(card) {
+  const sel = card.querySelector('.ex-select');
+  return sel.value === '__new__' ? card.querySelector('.ex-name-new').value : sel.value;
+}
+
+// Tocar numa miniatura no Histórico → abre o detalhe.
+$('#history-list').addEventListener('click', (e) => {
+  const img = e.target.closest('.ex-thumb-sm');
+  if (img) openExerciseDetail(img.getAttribute('src'), img.dataset.name || '');
+});
 
 // ------------------------------------------------------------
 //  Arranque
