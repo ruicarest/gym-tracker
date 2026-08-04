@@ -162,6 +162,34 @@ function populateSelect(sel, kind, selectedName) {
   sel.innerHTML = opts.join('');
 }
 
+// Ao escolher um exercício já feito, pré-carrega a carga máxima + reps (minha e do parceiro/a).
+async function prefillFromHistory(card, name, kind) {
+  const ex = exerciseCache.find((e) => sameKind(e, kind) && e.name === name);
+  if (!ex) return;
+  let res;
+  try { res = await db.progressFor(ex.id, kind); } catch { return; }
+  const points = res?.points || [];
+  if (!points.length) return;
+
+  if (kind === 'cardio') {
+    const bestDur = Math.max(...points.map((p) => p.bestDuration || 0));
+    const bestDist = Math.max(...points.map((p) => p.bestDistance || 0));
+    if (bestDur) card.querySelector('.cardio-duration').value = fmtNum(bestDur);
+    if (bestDist) card.querySelector('.cardio-distance').value = fmtNum(bestDist);
+    return;
+  }
+  const best = points.reduce((a, p) => (p.bestWeight > a.bestWeight ? p : a), points[0]);
+  const bestP = points.reduce((a, p) => (p.bestWeightPartner > a.bestWeightPartner ? p : a), points[0]);
+  const row = card.querySelector('.set-row');
+  if (row && best.topSet) {
+    row.querySelector('.set-weight').value = fmtNum(best.topSet.weight);
+    row.querySelector('.set-reps').value = best.topSet.reps ?? 12;
+    if (bestP.topSetPartner && bestP.bestWeightPartner > 0) {
+      row.querySelector('.set-weight-partner').value = fmtNum(bestP.topSetPartner.weight);
+    }
+  }
+}
+
 function buildExPicker(node, kind, dataName) {
   const sel = node.querySelector('.ex-select');
   const newInput = node.querySelector('.ex-name-new');
@@ -172,10 +200,11 @@ function buildExPicker(node, kind, dataName) {
     newInput.hidden = false;
     newInput.value = dataName;
   }
-  sel.addEventListener('change', () => {
+  sel.addEventListener('change', async () => {
     const isNew = sel.value === '__new__';
     newInput.hidden = !isNew;
     if (isNew) { newInput.value = ''; newInput.focus(); }
+    else if (sel.value) await prefillFromHistory(node, sel.value, kind);
     persistActive();
   });
   newInput.addEventListener('input', persistActive);
@@ -185,7 +214,7 @@ function addSetRow(setsEl, data = {}) {
   const node = $('#set-template').content.firstElementChild.cloneNode(true);
   node.querySelector('.set-weight').value = data.weight ?? '';
   node.querySelector('.set-weight-partner').value = data.weightPartner ?? '';
-  node.querySelector('.set-reps').value = data.reps ?? '';
+  node.querySelector('.set-reps').value = data.reps ?? 12; // 12 reps por defeito
   node.querySelector('.partner-name').textContent = partnerName();
   node.querySelector('.remove-set').addEventListener('click', () => {
     node.remove();
