@@ -94,6 +94,7 @@ const exercisesEl = $('#exercises');
 let startedAt = null;   // Date
 let tickTimer = null;
 let durationEdited = false;
+let editingWorkoutId = null; // id do treino a editar (null = novo treino)
 
 function elapsedSec() {
   return startedAt ? Math.floor((Date.now() - startedAt.getTime()) / 1000) : 0;
@@ -127,21 +128,61 @@ $('#start-btn').addEventListener('click', () => startSession());
 $('#duration-min').addEventListener('input', () => { durationEdited = true; persistActive(); });
 
 $('#cancel-btn').addEventListener('click', () => {
-  if (!confirm('Cancelar este treino? As séries introduzidas serão descartadas.')) return;
+  const wasEditing = !!editingWorkoutId;
+  const msg = wasEditing ? 'Descartar as alterações?' : 'Cancelar este treino? As séries introduzidas serão descartadas.';
+  if (!confirm(msg)) return;
   endSession();
+  if (wasEditing) switchView('view-history');
 });
+
+// Carrega um treino concluído para edição (sem timer a correr).
+function loadWorkoutForEdit(w) {
+  endSession();
+  editingWorkoutId = w.id;
+  $('#workout-date').value = w.date || todayISO();
+  $('#workout-type').value = w.type || '';
+  $('#workout-notes').value = w.notes || '';
+  partnerToggle.checked = !!w.partner;
+  if (w.partner) partnerNameInput.value = w.partner;
+  applyPartnerUI();
+
+  exercisesEl.innerHTML = '';
+  for (const g of w.exercises) {
+    const name = g.exercise.name;
+    const imageUrl = g.exercise.image_url || '';
+    if (g.kind === 'cardio') {
+      const r = g.rows[0] || {};
+      addCardioCard({ name, imageUrl, durationMin: r.durationMin ?? '', distanceKm: r.distanceKm ?? '' });
+    } else {
+      const sets = g.rows.map((r) => ({ weight: r.weight ?? '', weightPartner: r.weightPartner ?? '', reps: r.reps ?? '' }));
+      addStrengthCard({ name, imageUrl, sets });
+    }
+  }
+
+  startedAt = null;          // edição não corre cronómetro
+  durationEdited = true;
+  $('#duration-min').value = w.durationSec != null ? Math.round(w.durationSec / 60) : '';
+  $('#clock').textContent = formatClock(w.durationSec || 0);
+  showActive(true);
+  $('#finish-btn').textContent = '💾 Guardar alterações';
+  $('#cancel-btn').textContent = 'Cancelar edição';
+  switchView('view-log');
+}
 
 function endSession() {
   clearInterval(tickTimer);
   tickTimer = null;
   startedAt = null;
   durationEdited = false;
+  editingWorkoutId = null;
   localStorage.removeItem(ACTIVE_KEY);
   exercisesEl.innerHTML = '';
   $('#workout-notes').value = '';
   $('#duration-min').value = '';
   $('#clock').textContent = '00:00';
   $('#workout-date').value = todayISO();
+  $('#finish-btn').textContent = '⏹️ Terminar treino';
+  $('#cancel-btn').textContent = 'Cancelar treino';
   showActive(false);
 }
 
@@ -367,22 +408,27 @@ $('#finish-btn').addEventListener('click', async (e) => {
     ? Math.round((parseFloat($('#duration-min').value) || 0) * 60)
     : elapsedSec();
 
+  const payload = {
+    date: $('#workout-date').value || todayISO(),
+    type: $('#workout-type').value.trim(),
+    notes: $('#workout-notes').value.trim(),
+    partner: partnerOn ? partnerName() : null,
+    durationSec,
+    entries,
+  };
+
   const btn = e.currentTarget;
   btn.disabled = true;
   try {
-    await db.addWorkout({
-      date: $('#workout-date').value || todayISO(),
-      type: $('#workout-type').value.trim(),
-      notes: $('#workout-notes').value.trim(),
-      partner: partnerOn ? partnerName() : null,
-      startedAt: startedAt ? startedAt.toISOString() : null,
-      endedAt: new Date().toISOString(),
-      durationSec,
-      entries,
-    });
+    const wasEditing = !!editingWorkoutId;
+    if (wasEditing) {
+      await db.updateWorkout(editingWorkoutId, payload);
+    } else {
+      await db.addWorkout({ ...payload, startedAt: startedAt ? startedAt.toISOString() : null, endedAt: new Date().toISOString() });
+    }
     endSession();
     await refreshExerciseLists();
-    toast('Treino guardado 💪');
+    toast(wasEditing ? 'Treino atualizado ✅' : 'Treino guardado 💪');
     switchView('view-history');
   } catch (err) {
     console.error(err);
@@ -448,8 +494,12 @@ async function renderHistory() {
       </div>
       ${lines}
       ${w.notes ? `<div class="wc-notes">${escapeHtml(w.notes)}</div>` : ''}
-      <div class="wc-foot"><button class="icon-btn del-btn">🗑 Apagar</button></div>
+      <div class="wc-foot">
+        <button class="icon-btn edit-btn">✏️ Editar</button>
+        <button class="icon-btn del-btn">🗑 Apagar</button>
+      </div>
     `;
+    el.querySelector('.edit-btn').addEventListener('click', () => loadWorkoutForEdit(w));
     el.querySelector('.del-btn').addEventListener('click', async () => {
       if (!confirm('Apagar este treino?')) return;
       await db.deleteWorkout(w.id);

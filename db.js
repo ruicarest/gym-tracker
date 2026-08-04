@@ -97,6 +97,38 @@ function supabaseBackend(supabase) {
       return workout.id;
     },
 
+    async updateWorkout(id, w) {
+      const { error: uErr } = await supabase
+        .from('workouts')
+        .update({
+          date: w.date, type: w.type || null, notes: w.notes || null,
+          partner: w.partner || null, duration_sec: w.durationSec ?? null,
+        })
+        .eq('id', id);
+      if (uErr) throw uErr;
+
+      const { error: dErr } = await supabase.from('entries').delete().eq('workout_id', id);
+      if (dErr) throw dErr;
+
+      const rows = [];
+      let pos = 0;
+      for (const entry of w.entries) {
+        const ex = await this.getOrCreateExercise(entry.name, entry.kind, entry.muscleGroup, entry.imageUrl);
+        for (const r of entry.rows) {
+          rows.push({
+            workout_id: id, exercise_id: ex.id, position: ++pos,
+            weight: r.weight ?? null, weight_partner: r.weightPartner ?? null, reps: r.reps ?? null,
+            duration_min: r.durationMin ?? null, distance_km: r.distanceKm ?? null,
+          });
+        }
+      }
+      if (rows.length) {
+        const { error: eErr } = await supabase.from('entries').insert(rows);
+        if (eErr) throw eErr;
+      }
+      return id;
+    },
+
     async listWorkouts() {
       const { data, error } = await supabase
         .from('workouts')
@@ -226,6 +258,31 @@ function localBackend() {
       }
       saveStore(store);
       return workout.id;
+    },
+
+    async updateWorkout(id, w) {
+      const store = loadStore();
+      const wk = store.workouts.find((x) => x.id === id);
+      if (!wk) return id;
+      wk.date = w.date;
+      wk.type = w.type || null;
+      wk.notes = w.notes || null;
+      wk.partner = w.partner || null;
+      wk.duration_sec = w.durationSec ?? null;
+      store.entries = store.entries.filter((s) => s.workout_id !== id);
+      let pos = 0;
+      for (const entry of w.entries) {
+        const ex = findOrCreate(store, entry.name, entry.kind, entry.muscleGroup, entry.imageUrl);
+        for (const r of entry.rows) {
+          store.entries.push({
+            id: uid(), workout_id: id, exercise_id: ex.id, position: ++pos,
+            weight: r.weight ?? null, weight_partner: r.weightPartner ?? null, reps: r.reps ?? null,
+            duration_min: r.durationMin ?? null, distance_km: r.distanceKm ?? null,
+          });
+        }
+      }
+      saveStore(store);
+      return id;
     },
 
     async listWorkouts() {

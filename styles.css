@@ -330,7 +330,7 @@ textarea { resize: vertical; }
 .exercise-line .ex-sets { color: var(--muted); font-size: 0.83rem; line-height: 1.5; }
 .exercise-line .ppl { color: var(--cardio); font-weight: 600; }
 .wc-notes { margin-top: 8px; font-size: 0.82rem; color: var(--muted); font-style: italic; }
-.wc-foot { display: flex; justify-content: flex-end; margin-top: 8px; }
+.wc-foot { display: flex; justify-content: flex-end; gap: 6px; margin-top: 8px; }
 
 /* ---------- Progress ---------- */
 .chart-wrap {
