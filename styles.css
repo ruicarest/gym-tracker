@@ -66,8 +66,9 @@ main { padding: 16px; }
 .view { animation: fade 0.2s ease; }
 @keyframes fade { from { opacity: 0; transform: translateY(4px); } to { opacity: 1; transform: none; } }
 
-.row { display: flex; gap: 12px; }
-.row .field { flex: 1; }
+.row { display: flex; gap: 12px; flex-wrap: wrap; }
+.row .field { flex: 1 1 140px; min-width: 0; }
+.row .field input { min-width: 0; }
 
 .field { display: flex; flex-direction: column; gap: 6px; margin-bottom: 16px; }
 .field > span { font-size: 0.8rem; color: var(--muted); font-weight: 600; }

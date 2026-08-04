@@ -166,7 +166,7 @@ function supabaseBackend(supabase) {
       const { data, error } = await supabase
         .from('workouts')
         .select(
-          'id, date, type, notes, partner, duration_sec, ' +
+          'id, date, type, notes, partner, duration_sec, started_at, ' +
             'entries(id, position, weight, weight_partner, reps, duration_min, distance_km, ' +
             'exercise:exercises(id, name, kind, muscle_group, image_url))'
         )
@@ -395,6 +395,7 @@ function normalizeWorkout(w) {
     partner: w.partner,
     hasPartner,
     durationSec: w.duration_sec ?? null,
+    startedAt: w.started_at ?? null,
     exercises,
     totalSets: strengthSets,
     totalVolume,

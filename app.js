@@ -38,6 +38,11 @@ function formatDuration(sec) {
   const h = Math.floor(m / 60), mm = m % 60;
   return mm ? `${h}h ${mm}min` : `${h}h`;
 }
+function formatTime(iso) {
+  if (!iso) return '';
+  try { return new Date(iso).toLocaleTimeString('pt-PT', { hour: '2-digit', minute: '2-digit' }); }
+  catch { return ''; }
+}
 function escapeHtml(str) {
   return String(str).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 }
@@ -489,7 +494,7 @@ async function renderHistory() {
       <div class="wc-head">
         <div>
           <div class="wc-date">${prettyDate(w.date)}</div>
-          <div class="wc-sub">${plural(w.exercises.length, 'exercício', 'exercícios')}${dur ? ' · ' + dur : ''}</div>
+          <div class="wc-sub">${w.startedAt ? formatTime(w.startedAt) + ' · ' : ''}${plural(w.exercises.length, 'exercício', 'exercícios')}${dur ? ' · ' + dur : ''}</div>
         </div>
         <div class="wc-tags">
           ${w.type ? `<span class="type-tag">${escapeHtml(w.type)}</span>` : ''}
