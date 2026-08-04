@@ -1025,6 +1025,14 @@ async function init() {
   $('#account-btn').hidden = false;
   wireAuthUI();
   db.onAuthChange((session) => setTimeout(() => routeAuth(session), 0));
+  // Rota inicial explícita — não depender só do onAuthChange (evita ecrã em branco).
+  try {
+    const { data } = await db.getSession();
+    routeAuth(data.session);
+  } catch (e) {
+    console.error(e);
+    showScreen('auth');
+  }
 }
 
 init();

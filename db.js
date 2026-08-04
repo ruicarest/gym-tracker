@@ -449,7 +449,11 @@ async function makeDb() {
   if (isConfigured) {
     try {
       const { createClient } = await import('https://esm.sh/@supabase/supabase-js@2');
-      const supabase = createClient(CONFIG.SUPABASE_URL, CONFIG.SUPABASE_ANON_KEY);
+      const supabase = createClient(CONFIG.SUPABASE_URL, CONFIG.SUPABASE_ANON_KEY, {
+        // Sem lock entre tabs: o lock nativo (navigator.locks) pode bloquear no
+        // telemóvel quando há várias tabs abertas → ecrã que "não abre".
+        auth: { lock: async (_name, _acquireTimeout, fn) => await fn() },
+      });
       return supabaseBackend(supabase);
     } catch (e) {
       console.error('Falha a ligar ao Supabase, a usar armazenamento local:', e);
