@@ -15,47 +15,77 @@
   </header>
 
   <main>
-    <!-- ===================== NOVO TREINO ===================== -->
+    <!-- ===================== TREINAR ===================== -->
     <section id="view-log" class="view">
-      <form id="workout-form">
-        <div class="row">
-          <label class="field">
-            <span>Data</span>
-            <input type="date" id="workout-date" required />
-          </label>
-          <label class="field">
-            <span>Tipo de treino</span>
-            <input list="type-options" id="workout-type" placeholder="Push, Pull, Pernas…" />
-            <datalist id="type-options">
-              <option value="Push"></option>
-              <option value="Pull"></option>
-              <option value="Pernas"></option>
-              <option value="Upper"></option>
-              <option value="Lower"></option>
-              <option value="Full body"></option>
-              <option value="Cardio"></option>
-            </datalist>
-          </label>
-        </div>
+      <!-- Cabeçalho da sessão (sempre visível) -->
+      <div class="row">
+        <label class="field">
+          <span>Data</span>
+          <input type="date" id="workout-date" required />
+        </label>
+        <label class="field">
+          <span>Tipo de treino</span>
+          <input list="type-options" id="workout-type" placeholder="Push, Pull, Pernas…" />
+          <datalist id="type-options">
+            <option value="Push"></option>
+            <option value="Pull"></option>
+            <option value="Pernas"></option>
+            <option value="Upper"></option>
+            <option value="Lower"></option>
+            <option value="Full body"></option>
+            <option value="Cardio"></option>
+          </datalist>
+        </label>
+      </div>
 
+      <div class="partner-bar">
+        <label class="switch">
+          <input type="checkbox" id="partner-toggle" />
+          <span class="switch-track"><span class="switch-thumb"></span></span>
+          <span class="switch-label">Treino com parceiro/a</span>
+        </label>
+        <input type="text" id="partner-name" class="partner-name-input" value="Cláudia" placeholder="Nome" hidden />
+      </div>
+
+      <!-- Timer / começar-terminar -->
+      <div id="timer-area">
+        <button type="button" id="start-btn" class="btn primary full big">▶️ Começar treino</button>
+
+        <div id="timer-active" hidden>
+          <div class="timer-display">
+            <span class="clock" id="clock">00:00</span>
+            <label class="dur-field">
+              <input type="number" id="duration-min" inputmode="numeric" min="0" step="1" />
+              <span>min</span>
+            </label>
+          </div>
+          <button type="button" id="cancel-btn" class="btn ghost sm">Cancelar treino</button>
+        </div>
+      </div>
+
+      <!-- Corpo da sessão a decorrer -->
+      <div id="active-body" hidden>
         <div id="exercises" class="exercises"></div>
 
-        <button type="button" id="add-exercise" class="btn ghost full">+ Adicionar exercício</button>
+        <div class="add-row">
+          <button type="button" id="add-strength" class="btn ghost">🏋️ + Força</button>
+          <button type="button" id="add-cardio" class="btn ghost">🏃 + Cardio</button>
+        </div>
 
         <label class="field">
           <span>Notas (opcional)</span>
           <textarea id="workout-notes" rows="2" placeholder="Como correu, sensações, etc."></textarea>
         </label>
 
-        <button type="submit" class="btn primary full big">Guardar treino</button>
-      </form>
+        <button type="button" id="finish-btn" class="btn primary full big">⏹️ Terminar treino</button>
+      </div>
     </section>
 
     <!-- ===================== HISTÓRICO ===================== -->
     <section id="view-history" class="view" hidden>
       <div id="history-summary" class="summary-cards"></div>
       <div id="history-list" class="history-list"></div>
-      <p id="history-empty" class="empty" hidden>Ainda não há treinos registados. Vai à aba <strong>Treinar</strong> para começar. 💪</p>
+      <p id="history-empty" class="empty" hidden>Ainda não há treinos registados. Vai à aba <strong>Treinar</strong> e carrega em <strong>Começar treino</strong>. 💪</p>
     </section>
 
     <!-- ===================== PROGRESSO ===================== -->
@@ -64,6 +94,10 @@
         <span>Exercício</span>
         <select id="progress-exercise"></select>
       </label>
+      <div id="progress-person" class="seg" hidden>
+        <button type="button" class="seg-btn active" data-person="me">Eu</button>
+        <button type="button" class="seg-btn" data-person="partner">Cláudia</button>
+      </div>
       <div id="progress-stats" class="summary-cards"></div>
       <div id="progress-chart" class="chart-wrap"></div>
       <div id="progress-table"></div>
@@ -79,10 +113,12 @@
 
   <div id="toast" class="toast" hidden></div>
 
-  <template id="exercise-template">
-    <div class="exercise-card">
+  <!-- ===================== TEMPLATES ===================== -->
+  <template id="strength-template">
+    <div class="exercise-card" data-kind="strength">
       <div class="exercise-head">
-        <input class="ex-name" list="exercise-options" placeholder="Nome do exercício (ex: Supino)" />
+        <span class="kind-chip strength">🏋️</span>
+        <input class="ex-name" list="strength-options" placeholder="Nome do exercício (ex: Supino)" />
         <button type="button" class="icon-btn remove-exercise" title="Remover exercício">✕</button>
       </div>
       <div class="sets"></div>
@@ -93,14 +129,58 @@
   <template id="set-template">
     <div class="set-row">
       <span class="set-index">1</span>
-      <label class="mini"><input type="number" class="set-weight" inputmode="decimal" step="0.5" min="0" placeholder="0" /><span>kg</span></label>
+      <div class="weights">
+        <div class="wcaps">
+          <span class="me-label">Eu</span>
+          <span class="partner-name">Cláudia</span>
+        </div>
+        <div class="winputs">
+          <label class="mini">
+            <input type="number" class="set-weight" inputmode="decimal" step="0.5" min="0" placeholder="0" />
+            <span class="wlabel">kg</span>
+          </label>
+          <label class="mini set-partner">
+            <input type="number" class="set-weight-partner" inputmode="decimal" step="0.5" min="0" placeholder="0" />
+            <span class="wlabel">kg</span>
+          </label>
+        </div>
+      </div>
       <span class="times">×</span>
-      <label class="mini"><input type="number" class="set-reps" inputmode="numeric" step="1" min="0" placeholder="0" /><span>reps</span></label>
+      <label class="mini reps">
+        <input type="number" class="set-reps" inputmode="numeric" step="1" min="0" placeholder="0" />
+        <span class="wlabel">reps</span>
+      </label>
       <button type="button" class="icon-btn remove-set" title="Remover série">✕</button>
     </div>
   </template>
 
-  <datalist id="exercise-options"></datalist>
+  <template id="cardio-template">
+    <div class="exercise-card" data-kind="cardio">
+      <div class="exercise-head">
+        <span class="kind-chip cardio">🏃</span>
+        <input class="ex-name" list="cardio-options" placeholder="Corrida, Bicicleta, Remo, Elíptica…" />
+        <button type="button" class="icon-btn remove-exercise" title="Remover exercício">✕</button>
+      </div>
+      <div class="cardio-fields">
+        <label class="mini">
+          <input type="number" class="cardio-duration" inputmode="decimal" step="1" min="0" placeholder="0" />
+          <span class="wlabel">min</span>
+        </label>
+        <label class="mini">
+          <input type="number" class="cardio-distance" inputmode="decimal" step="0.1" min="0" placeholder="0" />
+          <span class="wlabel">km</span>
+        </label>
+      </div>
+    </div>
+  </template>
+
+  <datalist id="strength-options"></datalist>
+  <datalist id="cardio-options">
+    <option value="Corrida"></option>
+    <option value="Bicicleta"></option>
+    <option value="Remo"></option>
+    <option value="Elíptica"></option>
+  </datalist>
 
   <script type="module" src="app.js"></script>
 </body>

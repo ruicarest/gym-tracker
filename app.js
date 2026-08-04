@@ -8,21 +8,38 @@ const $$ = (sel, root = document) => [...root.querySelectorAll(sel)];
 
 function todayISO() {
   const d = new Date();
-  const off = d.getTimezoneOffset();
-  return new Date(d.getTime() - off * 60000).toISOString().slice(0, 10);
+  return new Date(d.getTime() - d.getTimezoneOffset() * 60000).toISOString().slice(0, 10);
 }
 
-const dateFmt = new Intl.DateTimeFormat('pt-PT', { weekday: 'short', day: 'numeric', month: 'short' });
+const dateFmt = new Intl.DateTimeFormat('pt-PT', { weekday: 'long', day: 'numeric', month: 'short' });
 function prettyDate(iso) {
   if (!iso) return '';
-  const d = new Date(iso + 'T00:00:00');
-  return dateFmt.format(d).replace('.', '');
+  return dateFmt.format(new Date(iso + 'T00:00:00')).replace('.', '');
 }
 function fmtNum(n) {
-  return Number.isInteger(n) ? String(n) : n.toFixed(1);
+  const v = Number(n) || 0;
+  return Number.isInteger(v) ? String(v) : v.toFixed(1);
 }
 function plural(n, one, many) {
   return `${n} ${n === 1 ? one : many}`;
+}
+function formatClock(sec) {
+  sec = Math.max(0, Math.floor(sec));
+  const h = Math.floor(sec / 3600);
+  const m = Math.floor((sec % 3600) / 60);
+  const s = sec % 60;
+  const pad = (x) => String(x).padStart(2, '0');
+  return h ? `${h}:${pad(m)}:${pad(s)}` : `${pad(m)}:${pad(s)}`;
+}
+function formatDuration(sec) {
+  if (sec == null) return null;
+  const m = Math.round(sec / 60);
+  if (m < 60) return `${m} min`;
+  const h = Math.floor(m / 60), mm = m % 60;
+  return mm ? `${h}h ${mm}min` : `${h}h`;
+}
+function escapeHtml(str) {
+  return String(str).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 }
 
 let toastTimer;
@@ -32,15 +49,13 @@ function toast(msg, isError = false) {
   el.classList.toggle('err', isError);
   el.hidden = false;
   clearTimeout(toastTimer);
-  toastTimer = setTimeout(() => (el.hidden = true), 2200);
+  toastTimer = setTimeout(() => (el.hidden = true), 2400);
 }
 
 // ------------------------------------------------------------
 //  Navegação por abas
 // ------------------------------------------------------------
-$$('.tab').forEach((tab) => {
-  tab.addEventListener('click', () => switchView(tab.dataset.view));
-});
+$$('.tab').forEach((tab) => tab.addEventListener('click', () => switchView(tab.dataset.view)));
 
 function switchView(viewId) {
   $$('.view').forEach((v) => (v.hidden = v.id !== viewId));
@@ -51,82 +66,250 @@ function switchView(viewId) {
 }
 
 // ------------------------------------------------------------
-//  Formulário: Novo treino
+//  Parceiro/a
 // ------------------------------------------------------------
-const exercisesEl = $('#exercises');
+const partnerToggle = $('#partner-toggle');
+const partnerNameInput = $('#partner-name');
 
-function addSetRow(setsEl, weight = '', reps = '') {
+function partnerName() {
+  return partnerNameInput.value.trim() || 'Parceiro/a';
+}
+function applyPartnerUI() {
+  const on = partnerToggle.checked;
+  document.body.classList.toggle('partner-on', on);
+  partnerNameInput.hidden = !on;
+  $$('.partner-name').forEach((el) => (el.textContent = partnerName()));
+}
+partnerToggle.addEventListener('change', () => { applyPartnerUI(); persistActive(); });
+partnerNameInput.addEventListener('input', () => {
+  $$('.partner-name').forEach((el) => (el.textContent = partnerName()));
+  persistActive();
+});
+
+// ------------------------------------------------------------
+//  Sessão a decorrer (timer + persistência)
+// ------------------------------------------------------------
+const ACTIVE_KEY = 'gymtracker.active';
+const exercisesEl = $('#exercises');
+let startedAt = null;   // Date
+let tickTimer = null;
+let durationEdited = false;
+
+function elapsedSec() {
+  return startedAt ? Math.floor((Date.now() - startedAt.getTime()) / 1000) : 0;
+}
+function tick() {
+  const e = elapsedSec();
+  $('#clock').textContent = formatClock(e);
+  if (!durationEdited) $('#duration-min').value = Math.round(e / 60);
+}
+function startTicking() {
+  clearInterval(tickTimer);
+  tick();
+  tickTimer = setInterval(tick, 1000);
+}
+
+function showActive(on) {
+  $('#start-btn').hidden = on;
+  $('#timer-active').hidden = !on;
+  $('#active-body').hidden = !on;
+}
+
+function startSession(restoredStartedAt) {
+  startedAt = restoredStartedAt || new Date();
+  showActive(true);
+  startTicking();
+  if (!restoredStartedAt && !$$('.exercise-card').length) addStrengthCard(); // arranca com um exercício
+  persistActive();
+}
+
+$('#start-btn').addEventListener('click', () => startSession());
+$('#duration-min').addEventListener('input', () => { durationEdited = true; persistActive(); });
+
+$('#cancel-btn').addEventListener('click', () => {
+  if (!confirm('Cancelar este treino? As séries introduzidas serão descartadas.')) return;
+  endSession();
+});
+
+function endSession() {
+  clearInterval(tickTimer);
+  tickTimer = null;
+  startedAt = null;
+  durationEdited = false;
+  localStorage.removeItem(ACTIVE_KEY);
+  exercisesEl.innerHTML = '';
+  $('#workout-notes').value = '';
+  $('#duration-min').value = '';
+  $('#clock').textContent = '00:00';
+  $('#workout-date').value = todayISO();
+  showActive(false);
+}
+
+// ------------------------------------------------------------
+//  Cartões de exercício (força / cardio)
+// ------------------------------------------------------------
+function addSetRow(setsEl, data = {}) {
   const node = $('#set-template').content.firstElementChild.cloneNode(true);
-  node.querySelector('.set-weight').value = weight;
-  node.querySelector('.set-reps').value = reps;
+  node.querySelector('.set-weight').value = data.weight ?? '';
+  node.querySelector('.set-weight-partner').value = data.weightPartner ?? '';
+  node.querySelector('.set-reps').value = data.reps ?? '';
+  node.querySelector('.partner-name').textContent = partnerName();
   node.querySelector('.remove-set').addEventListener('click', () => {
     node.remove();
     renumberSets(setsEl);
+    persistActive();
   });
   setsEl.appendChild(node);
   renumberSets(setsEl);
 }
-
 function renumberSets(setsEl) {
   $$('.set-row .set-index', setsEl).forEach((el, i) => (el.textContent = i + 1));
 }
 
-function addExerciseCard(focus = false) {
-  const node = $('#exercise-template').content.firstElementChild.cloneNode(true);
+function addStrengthCard(data = null) {
+  const node = $('#strength-template').content.firstElementChild.cloneNode(true);
   const setsEl = node.querySelector('.sets');
-  node.querySelector('.add-set').addEventListener('click', () => addSetRow(setsEl));
-  node.querySelector('.remove-exercise').addEventListener('click', () => {
-    node.remove();
-    if (!$$('.exercise-card').length) addExerciseCard();
-  });
-  addSetRow(setsEl); // começa com uma série
+  node.querySelector('.ex-name').value = data?.name ?? '';
+  node.querySelector('.add-set').addEventListener('click', () => { addSetRow(setsEl); persistActive(); });
+  node.querySelector('.remove-exercise').addEventListener('click', () => { node.remove(); persistActive(); });
+  const sets = data?.sets?.length ? data.sets : [{}];
+  sets.forEach((s) => addSetRow(setsEl, s));
   exercisesEl.appendChild(node);
-  if (focus) node.querySelector('.ex-name').focus();
+  if (!data) node.querySelector('.ex-name').focus();
 }
 
-$('#add-exercise').addEventListener('click', () => addExerciseCard(true));
+function addCardioCard(data = null) {
+  const node = $('#cardio-template').content.firstElementChild.cloneNode(true);
+  node.querySelector('.ex-name').value = data?.name ?? '';
+  node.querySelector('.cardio-duration').value = data?.durationMin ?? '';
+  node.querySelector('.cardio-distance').value = data?.distanceKm ?? '';
+  node.querySelector('.remove-exercise').addEventListener('click', () => { node.remove(); persistActive(); });
+  exercisesEl.appendChild(node);
+  if (!data) node.querySelector('.ex-name').focus();
+}
 
-function collectEntries() {
-  const entries = [];
-  for (const card of $$('.exercise-card')) {
-    const name = card.querySelector('.ex-name').value.trim();
-    if (!name) continue;
-    const sets = [];
-    for (const row of $$('.set-row', card)) {
-      const reps = parseInt(row.querySelector('.set-reps').value, 10);
-      if (!reps || reps <= 0) continue; // série sem reps é ignorada
-      const weight = parseFloat(row.querySelector('.set-weight').value) || 0;
-      sets.push({ weight, reps });
+$('#add-strength').addEventListener('click', () => { addStrengthCard(); persistActive(); });
+$('#add-cardio').addEventListener('click', () => { addCardioCard(); persistActive(); });
+// Persiste a cada tecla dentro dos exercícios
+exercisesEl.addEventListener('input', persistActive);
+$('#workout-notes').addEventListener('input', persistActive);
+$('#workout-date').addEventListener('input', persistActive);
+$('#workout-type').addEventListener('input', persistActive);
+
+// ------------------------------------------------------------
+//  Ler / persistir / restaurar a sessão
+// ------------------------------------------------------------
+function readExercisesFromDOM() {
+  return $$('.exercise-card').map((card) => {
+    const kind = card.dataset.kind;
+    const name = card.querySelector('.ex-name').value;
+    if (kind === 'strength') {
+      const sets = $$('.set-row', card).map((row) => ({
+        weight: row.querySelector('.set-weight').value,
+        weightPartner: row.querySelector('.set-weight-partner').value,
+        reps: row.querySelector('.set-reps').value,
+      }));
+      return { kind, name, sets };
     }
-    if (sets.length) entries.push({ name, sets });
-  }
-  return entries;
+    return {
+      kind, name,
+      durationMin: card.querySelector('.cardio-duration').value,
+      distanceKm: card.querySelector('.cardio-distance').value,
+    };
+  });
 }
 
-function resetForm() {
+function persistActive() {
+  if (!startedAt) return;
+  const state = {
+    startedAt: startedAt.toISOString(),
+    date: $('#workout-date').value,
+    type: $('#workout-type').value,
+    notes: $('#workout-notes').value,
+    partnerOn: partnerToggle.checked,
+    partnerName: partnerNameInput.value,
+    durationEdited,
+    durationMin: $('#duration-min').value,
+    exercises: readExercisesFromDOM(),
+  };
+  localStorage.setItem(ACTIVE_KEY, JSON.stringify(state));
+}
+
+function restoreActive() {
+  let state;
+  try { state = JSON.parse(localStorage.getItem(ACTIVE_KEY)); } catch { state = null; }
+  if (!state || !state.startedAt) return false;
+
+  $('#workout-date').value = state.date || todayISO();
+  $('#workout-type').value = state.type || '';
+  $('#workout-notes').value = state.notes || '';
+  partnerToggle.checked = !!state.partnerOn;
+  partnerNameInput.value = state.partnerName || 'Cláudia';
+  applyPartnerUI();
+
   exercisesEl.innerHTML = '';
-  addExerciseCard();
-  $('#workout-notes').value = '';
-  $('#workout-date').value = todayISO();
+  for (const ex of state.exercises || []) {
+    if (ex.kind === 'cardio') addCardioCard(ex);
+    else addStrengthCard(ex);
+  }
+  durationEdited = !!state.durationEdited;
+  startSession(new Date(state.startedAt));
+  if (durationEdited) $('#duration-min').value = state.durationMin || '';
+  return true;
 }
 
-$('#workout-form').addEventListener('submit', async (e) => {
-  e.preventDefault();
-  const entries = collectEntries();
+// ------------------------------------------------------------
+//  Terminar treino (guardar)
+// ------------------------------------------------------------
+$('#finish-btn').addEventListener('click', async (e) => {
+  const partnerOn = partnerToggle.checked;
+  const entries = [];
+  for (const ex of readExercisesFromDOM()) {
+    const name = (ex.name || '').trim();
+    if (!name) continue;
+    if (ex.kind === 'strength') {
+      const rows = [];
+      for (const s of ex.sets) {
+        const reps = parseInt(s.reps, 10);
+        if (!reps || reps <= 0) continue;
+        rows.push({
+          weight: parseFloat(s.weight) || 0,
+          weightPartner: partnerOn ? (parseFloat(s.weightPartner) || null) : null,
+          reps,
+        });
+      }
+      if (rows.length) entries.push({ name, kind: 'strength', rows });
+    } else {
+      const dur = parseFloat(ex.durationMin);
+      const dist = parseFloat(ex.distanceKm);
+      if (!dur && !dist) continue;
+      entries.push({ name, kind: 'cardio', muscleGroup: 'cardio', rows: [{ durationMin: dur || null, distanceKm: dist || null }] });
+    }
+  }
+
   if (!entries.length) {
-    toast('Adiciona pelo menos um exercício com séries', true);
+    toast('Adiciona pelo menos um exercício preenchido', true);
     return;
   }
-  const btn = e.submitter;
-  if (btn) btn.disabled = true;
+
+  const durationSec = durationEdited
+    ? Math.round((parseFloat($('#duration-min').value) || 0) * 60)
+    : elapsedSec();
+
+  const btn = e.currentTarget;
+  btn.disabled = true;
   try {
     await db.addWorkout({
       date: $('#workout-date').value || todayISO(),
       type: $('#workout-type').value.trim(),
       notes: $('#workout-notes').value.trim(),
+      partner: partnerOn ? partnerName() : null,
+      startedAt: startedAt ? startedAt.toISOString() : null,
+      endedAt: new Date().toISOString(),
+      durationSec,
       entries,
     });
-    resetForm();
+    endSession();
     await refreshExerciseLists();
     toast('Treino guardado 💪');
     switchView('view-history');
@@ -134,13 +317,17 @@ $('#workout-form').addEventListener('submit', async (e) => {
     console.error(err);
     toast('Erro ao guardar: ' + (err.message || err), true);
   } finally {
-    if (btn) btn.disabled = false;
+    btn.disabled = false;
   }
 });
 
 // ------------------------------------------------------------
 //  Histórico
 // ------------------------------------------------------------
+function card(value, label) {
+  return `<div class="card"><div class="big-num">${value}</div><div class="lbl">${label}</div></div>`;
+}
+
 async function renderHistory() {
   const list = $('#history-list');
   const empty = $('#history-empty');
@@ -160,39 +347,33 @@ async function renderHistory() {
   empty.hidden = workouts.length > 0;
   if (!workouts.length) return;
 
-  // Cartões de resumo
   const now = new Date();
   const thisMonth = workouts.filter((w) => {
     const d = new Date(w.date + 'T00:00:00');
     return d.getMonth() === now.getMonth() && d.getFullYear() === now.getFullYear();
   }).length;
-  const volume = workouts.reduce((s, w) => s + w.totalVolume, 0);
+  const totalSec = workouts.reduce((s, w) => s + (w.durationSec || 0), 0);
   summary.innerHTML = `
     ${card(workouts.length, 'Treinos')}
     ${card(thisMonth, 'Este mês')}
-    ${card(fmtNum(volume / 1000) + ' t', 'Volume total')}
+    ${card(formatDuration(totalSec) || '0 min', 'Tempo total')}
   `;
 
-  // Cartões de treino
   for (const w of workouts) {
     const el = document.createElement('div');
     el.className = 'workout-card';
-    const lines = w.exercises
-      .map((g) => {
-        const sets = g.sets.map((s) => `${fmtNum(s.weight)}×${s.reps}`).join(' · ');
-        return `<div class="exercise-line">
-          <div class="ex-title">${escapeHtml(g.exercise.name)}</div>
-          <div class="ex-sets">${sets}</div>
-        </div>`;
-      })
-      .join('');
+    const lines = w.exercises.map((g) => exerciseLine(g, w.partner)).join('');
+    const dur = formatDuration(w.durationSec);
     el.innerHTML = `
       <div class="wc-head">
         <div>
           <div class="wc-date">${prettyDate(w.date)}</div>
-          <div class="wc-sub">${plural(w.exercises.length, 'exercício', 'exercícios')} · ${plural(w.totalSets, 'série', 'séries')}</div>
+          <div class="wc-sub">${plural(w.exercises.length, 'exercício', 'exercícios')}${dur ? ' · ' + dur : ''}</div>
         </div>
-        ${w.type ? `<span class="type-tag">${escapeHtml(w.type)}</span>` : ''}
+        <div class="wc-tags">
+          ${w.type ? `<span class="type-tag">${escapeHtml(w.type)}</span>` : ''}
+          ${w.partner ? `<span class="partner-tag">👥 ${escapeHtml(w.partner)}</span>` : ''}
+        </div>
       </div>
       ${lines}
       ${w.notes ? `<div class="wc-notes">${escapeHtml(w.notes)}</div>` : ''}
@@ -207,129 +388,169 @@ async function renderHistory() {
   }
 }
 
-function card(value, label) {
-  return `<div class="card"><div class="big-num">${value}</div><div class="lbl">${label}</div></div>`;
+function exerciseLine(g, partner) {
+  const icon = g.kind === 'cardio' ? '🏃' : '🏋️';
+  if (g.kind === 'cardio') {
+    const r = g.rows[0] || {};
+    const parts = [];
+    if (r.durationMin) parts.push(`${fmtNum(r.durationMin)} min`);
+    if (r.distanceKm) parts.push(`${fmtNum(r.distanceKm)} km`);
+    return `<div class="exercise-line">
+      <div class="ex-title">${icon} ${escapeHtml(g.exercise.name)}</div>
+      <div class="ex-sets">${parts.join(' · ') || '—'}</div>
+    </div>`;
+  }
+  const mine = g.rows.map((r) => `${fmtNum(r.weight)}×${r.reps}`).join(' · ');
+  const hasPartner = partner && g.rows.some((r) => r.weightPartner != null);
+  const partnerLine = hasPartner
+    ? `<div class="ex-sets"><span class="ppl">${escapeHtml(partner)}:</span> ${g.rows.map((r) => `${fmtNum(r.weightPartner)}×${r.reps}`).join(' · ')}</div>`
+    : '';
+  const myLabel = hasPartner ? `<span class="ppl">Eu:</span> ` : '';
+  return `<div class="exercise-line">
+    <div class="ex-title">${icon} ${escapeHtml(g.exercise.name)}</div>
+    <div class="ex-sets">${myLabel}${mine}</div>
+    ${partnerLine}
+  </div>`;
 }
 
 // ------------------------------------------------------------
 //  Progresso
 // ------------------------------------------------------------
 const progressSelect = $('#progress-exercise');
-progressSelect.addEventListener('change', () => renderProgressChart(progressSelect.value));
+let currentPerson = 'me';
+
+progressSelect.addEventListener('change', () => { currentPerson = 'me'; syncSeg(); renderProgressChart(); });
+$$('#progress-person .seg-btn').forEach((b) =>
+  b.addEventListener('click', () => { currentPerson = b.dataset.person; syncSeg(); renderProgressChart(); })
+);
+function syncSeg() {
+  $$('#progress-person .seg-btn').forEach((b) => b.classList.toggle('active', b.dataset.person === currentPerson));
+}
 
 async function renderProgressView() {
   const exercises = await db.listExercises();
+  $('#progress-person [data-person="partner"]').textContent = partnerName();
   const prev = progressSelect.value;
   progressSelect.innerHTML = exercises.length
-    ? exercises.map((e) => `<option value="${e.id}">${escapeHtml(e.name)}</option>`).join('')
+    ? exercises.map((e) => `<option value="${e.id}" data-kind="${e.kind}">${e.kind === 'cardio' ? '🏃' : '🏋️'} ${escapeHtml(e.name)}</option>`).join('')
     : '<option value="">— sem exercícios ainda —</option>';
   if (exercises.some((e) => e.id === prev)) progressSelect.value = prev;
-  renderProgressChart(progressSelect.value);
+  renderProgressChart();
 }
 
-async function renderProgressChart(exerciseId) {
+async function renderProgressChart() {
   const chartWrap = $('#progress-chart');
   const statsEl = $('#progress-stats');
   const tableEl = $('#progress-table');
   const empty = $('#progress-empty');
+  const seg = $('#progress-person');
   chartWrap.innerHTML = '';
   statsEl.innerHTML = '';
   tableEl.innerHTML = '';
 
-  if (!exerciseId) {
-    empty.hidden = false;
+  const opt = progressSelect.selectedOptions[0];
+  const exerciseId = progressSelect.value;
+  const kind = opt?.dataset.kind || 'strength';
+  if (!exerciseId) { empty.hidden = false; seg.hidden = true; return; }
+
+  const { points } = await db.progressFor(exerciseId, kind);
+  empty.hidden = points.length > 0;
+  if (!points.length) { seg.hidden = true; return; }
+
+  if (kind === 'cardio') {
+    seg.hidden = true;
+    const bestDist = Math.max(...points.map((p) => p.bestDistance));
+    const bestDur = Math.max(...points.map((p) => p.bestDuration));
+    const useDistance = bestDist > 0;
+    statsEl.innerHTML = `
+      ${card(fmtNum(bestDist) + ' km', 'Melhor distância')}
+      ${card(fmtNum(bestDur) + ' min', 'Melhor tempo')}
+      ${card(points.length, 'Sessões')}
+    `;
+    chartWrap.innerHTML = buildChart(points, (p) => (useDistance ? p.bestDistance : p.bestDuration), true);
+    const rows = points.slice().reverse().map((p) =>
+      `<tr><td>${prettyDate(p.date)}</td><td>${fmtNum(p.bestDistance)} km</td><td>${fmtNum(p.bestDuration)} min</td></tr>`
+    ).join('');
+    tableEl.innerHTML = `<table class="prog-table"><thead><tr><th>Data</th><th>Distância</th><th>Tempo</th></tr></thead><tbody>${rows}</tbody></table>`;
     return;
   }
 
-  const points = await db.progressFor(exerciseId);
-  empty.hidden = points.length > 0;
-  if (!points.length) return;
+  // Força
+  const hasPartner = points.some((p) => p.bestWeightPartner > 0);
+  seg.hidden = !hasPartner;
+  if (!hasPartner) currentPerson = 'me';
+  syncSeg();
+  const isPartner = currentPerson === 'partner';
+  const weightOf = (p) => (isPartner ? p.bestWeightPartner : p.bestWeight);
+  const rmOf = (p) => (isPartner ? p.best1RMPartner : p.best1RM);
+  const topOf = (p) => (isPartner ? p.topSetPartner : p.topSet);
 
-  const bestWeight = Math.max(...points.map((p) => p.bestWeight));
-  const best1RM = Math.max(...points.map((p) => p.best1RM));
+  const bestWeight = Math.max(...points.map(weightOf));
+  const best1RM = Math.max(...points.map(rmOf));
   statsEl.innerHTML = `
     ${card(fmtNum(bestWeight) + ' kg', 'Melhor peso')}
     ${card(fmtNum(best1RM) + ' kg', '1RM estimado')}
     ${card(points.length, 'Sessões')}
   `;
-
-  chartWrap.innerHTML = buildChart(points);
-
-  const rows = points
-    .slice()
-    .reverse()
-    .map((p) => {
-      const top = p.topSet ? `${fmtNum(p.topSet.weight)}×${p.topSet.reps}` : '—';
-      return `<tr><td>${prettyDate(p.date)}</td><td>${top}</td><td>${fmtNum(p.best1RM)} kg</td></tr>`;
-    })
-    .join('');
-  tableEl.innerHTML = `<table class="prog-table">
-    <thead><tr><th>Data</th><th>Melhor série</th><th>1RM est.</th></tr></thead>
-    <tbody>${rows}</tbody></table>`;
+  chartWrap.innerHTML = buildChart(points, weightOf, false);
+  const rows = points.slice().reverse().map((p) => {
+    const t = topOf(p);
+    return `<tr><td>${prettyDate(p.date)}</td><td>${t ? `${fmtNum(t.weight)}×${t.reps}` : '—'}</td><td>${fmtNum(rmOf(p))} kg</td></tr>`;
+  }).join('');
+  tableEl.innerHTML = `<table class="prog-table"><thead><tr><th>Data</th><th>Melhor série</th><th>1RM est.</th></tr></thead><tbody>${rows}</tbody></table>`;
 }
 
 // Gráfico de linha em SVG (sem bibliotecas).
-function buildChart(points) {
+function buildChart(points, valueFn, isCardio) {
   const W = 320, H = 150, padL = 36, padR = 12, padT = 14, padB = 26;
-  const values = points.map((p) => p.bestWeight);
-  const maxV = Math.max(...values);
-  const minV = Math.min(...values);
+  const values = points.map(valueFn);
+  const maxV = Math.max(...values), minV = Math.min(...values);
   const span = maxV - minV || 1;
   const yMax = maxV + span * 0.15;
   const yMin = Math.max(0, minV - span * 0.15);
 
-  const x = (i) => points.length === 1 ? (padL + (W - padL - padR) / 2)
-    : padL + (i / (points.length - 1)) * (W - padL - padR);
+  const x = (i) => points.length === 1 ? padL + (W - padL - padR) / 2 : padL + (i / (points.length - 1)) * (W - padL - padR);
   const y = (v) => padT + (1 - (v - yMin) / (yMax - yMin || 1)) * (H - padT - padB);
 
-  const linePts = points.map((p, i) => `${x(i).toFixed(1)},${y(p.bestWeight).toFixed(1)}`);
-  const linePath = 'M' + linePts.join(' L');
-  const areaPath = `M${x(0).toFixed(1)},${(H - padB).toFixed(1)} L` +
-    linePts.join(' L') + ` L${x(points.length - 1).toFixed(1)},${(H - padB).toFixed(1)} Z`;
+  const pts = points.map((p, i) => `${x(i).toFixed(1)},${y(valueFn(p)).toFixed(1)}`);
+  const linePath = 'M' + pts.join(' L');
+  const areaPath = `M${x(0).toFixed(1)},${(H - padB).toFixed(1)} L${pts.join(' L')} L${x(points.length - 1).toFixed(1)},${(H - padB).toFixed(1)} Z`;
+  const dots = points.map((p, i) => `<circle class="chart-dot${isCardio ? ' cardio' : ''}" cx="${x(i).toFixed(1)}" cy="${y(valueFn(p)).toFixed(1)}" r="3" />`).join('');
+  const c = isCardio ? ' cardio' : '';
 
-  const dots = points.map((p, i) => `<circle class="chart-dot" cx="${x(i).toFixed(1)}" cy="${y(p.bestWeight).toFixed(1)}" r="3" />`).join('');
-
-  // rótulos do eixo Y (min e max) e X (primeiro e último)
-  const yLabels = `
-    <text class="chart-label" x="4" y="${(y(yMax) + 4).toFixed(1)}">${fmtNum(Math.round(yMax))}</text>
-    <text class="chart-label" x="4" y="${(y(yMin) + 4).toFixed(1)}">${fmtNum(Math.round(yMin))}</text>`;
-  const xLabels = `
-    <text class="chart-label" x="${padL}" y="${H - 8}">${prettyDate(points[0].date)}</text>
-    <text class="chart-label" x="${W - padR}" y="${H - 8}" text-anchor="end">${prettyDate(points[points.length - 1].date)}</text>`;
-
-  return `<svg viewBox="0 0 ${W} ${H}" role="img" aria-label="Evolução do peso">
+  return `<svg viewBox="0 0 ${W} ${H}" role="img" aria-label="Evolução">
     <defs>
       <linearGradient id="areaGrad" x1="0" y1="0" x2="0" y2="1">
-        <stop offset="0%" stop-color="#4ade80" stop-opacity="0.28" />
-        <stop offset="100%" stop-color="#4ade80" stop-opacity="0" />
+        <stop offset="0%" stop-color="#4ade80" stop-opacity="0.28" /><stop offset="100%" stop-color="#4ade80" stop-opacity="0" />
+      </linearGradient>
+      <linearGradient id="areaGradCardio" x1="0" y1="0" x2="0" y2="1">
+        <stop offset="0%" stop-color="#38bdf8" stop-opacity="0.28" /><stop offset="100%" stop-color="#38bdf8" stop-opacity="0" />
       </linearGradient>
     </defs>
     <line class="chart-grid" x1="${padL}" y1="${H - padB}" x2="${W - padR}" y2="${H - padB}" />
-    <path class="chart-area" d="${areaPath}" />
-    <path class="chart-line" d="${linePath}" />
+    <path class="chart-area${c}" d="${areaPath}" />
+    <path class="chart-line${c}" d="${linePath}" />
     ${dots}
-    ${yLabels}
-    ${xLabels}
+    <text class="chart-label" x="4" y="${(y(yMax) + 4).toFixed(1)}">${fmtNum(Math.round(yMax))}</text>
+    <text class="chart-label" x="4" y="${(y(yMin) + 4).toFixed(1)}">${fmtNum(Math.round(yMin))}</text>
+    <text class="chart-label" x="${padL}" y="${H - 8}">${prettyDate(points[0].date)}</text>
+    <text class="chart-label" x="${W - padR}" y="${H - 8}" text-anchor="end">${prettyDate(points[points.length - 1].date)}</text>
   </svg>`;
 }
 
 // ------------------------------------------------------------
-//  Datalist de exercícios (autocomplete no formulário)
+//  Datalists (autocomplete no formulário)
 // ------------------------------------------------------------
 async function refreshExerciseLists() {
   try {
     const exercises = await db.listExercises();
-    $('#exercise-options').innerHTML = exercises.map((e) => `<option value="${escapeHtml(e.name)}"></option>`).join('');
+    const opts = (list) => list.map((e) => `<option value="${escapeHtml(e.name)}"></option>`).join('');
+    $('#strength-options').innerHTML = opts(exercises.filter((e) => e.kind !== 'cardio'));
+    const cardio = exercises.filter((e) => e.kind === 'cardio');
+    if (cardio.length) $('#cardio-options').innerHTML = opts(cardio);
   } catch (err) {
     console.error(err);
   }
-}
-
-// ------------------------------------------------------------
-//  Utils
-// ------------------------------------------------------------
-function escapeHtml(str) {
-  return String(str).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 }
 
 // ------------------------------------------------------------
@@ -337,8 +558,9 @@ function escapeHtml(str) {
 // ------------------------------------------------------------
 function init() {
   $('#workout-date').value = todayISO();
-  addExerciseCard();
+  applyPartnerUI();
   refreshExerciseLists();
+  restoreActive(); // retoma um treino em curso, se existir
 
   const badge = $('#backend-badge');
   if (db.kind === 'cloud') {

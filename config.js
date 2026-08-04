@@ -13,6 +13,6 @@
 // ============================================================
 
 export const CONFIG = {
-  SUPABASE_URL: 'YOUR_SUPABASE_URL',
-  SUPABASE_ANON_KEY: 'YOUR_SUPABASE_ANON_KEY',
+  SUPABASE_URL: 'https://pxrdeoltawlcjjerttje.supabase.co',
+  SUPABASE_ANON_KEY: 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InB4cmRlb2x0YXdsY2pqZXJ0dGplIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODU4MzczNjIsImV4cCI6MjEwMTQxMzM2Mn0.UTxnWeb5EeGXSAWy2UQ4D4MQZpAa3msw8gcnoDRO-zk',
 };
