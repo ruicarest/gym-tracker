@@ -551,8 +551,81 @@ function syncSeg() {
   $$('#progress-person .seg-btn').forEach((b) => b.classList.toggle('active', b.dataset.person === currentPerson));
 }
 
+// ---------- Resumo geral (Mês / Ano) ----------
+const MONTHS_SHORT = ['jan', 'fev', 'mar', 'abr', 'mai', 'jun', 'jul', 'ago', 'set', 'out', 'nov', 'dez'];
+let reviewGranularity = 'month';
+let reviewWorkouts = null;
+
+$$('#review-toggle .seg-btn').forEach((b) =>
+  b.addEventListener('click', () => {
+    reviewGranularity = b.dataset.gran;
+    $$('#review-toggle .seg-btn').forEach((x) => x.classList.toggle('active', x.dataset.gran === reviewGranularity));
+    if (reviewWorkouts) renderReview(reviewWorkouts);
+  })
+);
+
+function computeReview(workouts, gran) {
+  const now = new Date();
+  const buckets = [];
+  if (gran === 'month') {
+    for (let i = 5; i >= 0; i--) {
+      const d = new Date(now.getFullYear(), now.getMonth() - i, 1);
+      buckets.push({ key: `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`, label: MONTHS_SHORT[d.getMonth()], count: 0 });
+    }
+  } else {
+    const years = workouts.map((w) => +(w.date || '').slice(0, 4)).filter(Boolean);
+    const minY = years.length ? Math.min(...years) : now.getFullYear();
+    for (let y = minY; y <= now.getFullYear(); y++) buckets.push({ key: String(y), label: String(y), count: 0 });
+  }
+  const idx = Object.fromEntries(buckets.map((b, i) => [b.key, i]));
+  for (const w of workouts) {
+    const key = gran === 'month' ? (w.date || '').slice(0, 7) : (w.date || '').slice(0, 4);
+    if (idx[key] != null) buckets[idx[key]].count++;
+  }
+  return buckets;
+}
+
+function renderReview(workouts) {
+  const statsEl = $('#review-stats'), chartEl = $('#review-chart'), empty = $('#review-empty');
+  if (!workouts.length) { empty.hidden = false; statsEl.innerHTML = ''; chartEl.innerHTML = ''; return; }
+  empty.hidden = true;
+  const withDur = workouts.filter((w) => w.durationSec);
+  const avgSec = withDur.length ? Math.round(withDur.reduce((s, w) => s + w.durationSec, 0) / withDur.length) : 0;
+  const now = new Date();
+  const periodCount = reviewGranularity === 'month'
+    ? workouts.filter((w) => { const d = new Date(w.date + 'T00:00:00'); return d.getMonth() === now.getMonth() && d.getFullYear() === now.getFullYear(); }).length
+    : workouts.filter((w) => +(w.date || '').slice(0, 4) === now.getFullYear()).length;
+  statsEl.innerHTML =
+    card(workouts.length, 'Treinos') +
+    card(formatDuration(avgSec) || '—', 'Duração média') +
+    card(periodCount, reviewGranularity === 'month' ? 'Este mês' : 'Este ano');
+  chartEl.innerHTML = buildBarChart(computeReview(workouts, reviewGranularity));
+}
+
+function buildBarChart(buckets) {
+  const W = 320, H = 150, padL = 8, padR = 8, padT = 20, padB = 22;
+  const max = Math.max(1, ...buckets.map((b) => b.count));
+  const n = buckets.length, gap = 8;
+  const bw = (W - padL - padR - gap * (n - 1)) / n;
+  const bars = buckets.map((b, i) => {
+    const h = (b.count / max) * (H - padT - padB);
+    const x = padL + i * (bw + gap);
+    const y = H - padB - h;
+    const cx = x + bw / 2;
+    return `<rect class="bar" x="${x.toFixed(1)}" y="${y.toFixed(1)}" width="${bw.toFixed(1)}" height="${Math.max(0, h).toFixed(1)}" rx="3" />
+      ${b.count ? `<text class="bar-val" x="${cx.toFixed(1)}" y="${(y - 5).toFixed(1)}" text-anchor="middle">${b.count}</text>` : ''}
+      <text class="chart-label" x="${cx.toFixed(1)}" y="${H - 7}" text-anchor="middle">${escapeHtml(b.label)}</text>`;
+  }).join('');
+  return `<svg viewBox="0 0 ${W} ${H}" role="img" aria-label="Treinos por período">
+    <line class="chart-grid" x1="${padL}" y1="${H - padB}" x2="${W - padR}" y2="${H - padB}" />
+    ${bars}
+  </svg>`;
+}
+
 async function renderProgressView() {
-  const exercises = await db.listExercises();
+  const [exercises, workouts] = await Promise.all([db.listExercises(), db.listWorkouts()]);
+  reviewWorkouts = workouts;
+  renderReview(workouts);
   $('#progress-person [data-person="partner"]').textContent = partnerName();
   const prev = progressSelect.value;
   progressSelect.innerHTML = exercises.length

@@ -350,6 +350,12 @@ textarea { resize: vertical; }
 .chart-dot.cardio { fill: var(--cardio); }
 .chart-grid { stroke: var(--border); stroke-width: 1; }
 .chart-label { fill: var(--muted); font-size: 10px; }
+.bar { fill: var(--accent); }
+.bar-val { fill: var(--text); font-size: 10px; font-weight: 700; }
+
+/* Títulos de secção no Progresso */
+.prog-h { font-size: 0.95rem; font-weight: 700; margin: 4px 2px 12px; letter-spacing: -0.01em; }
+.prog-h-2 { margin-top: 26px; padding-top: 18px; border-top: 1px solid var(--border); }
 
 .prog-table { width: 100%; border-collapse: collapse; font-size: 0.85rem; }
 .prog-table th, .prog-table td { padding: 8px 6px; text-align: right; border-bottom: 1px solid var(--border); }

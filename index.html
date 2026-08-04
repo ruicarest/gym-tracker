@@ -90,6 +90,18 @@
 
     <!-- ===================== PROGRESSO ===================== -->
     <section id="view-progress" class="view" hidden>
+      <!-- Resumo geral -->
+      <div class="prog-h">Resumo</div>
+      <div id="review-toggle" class="seg">
+        <button type="button" class="seg-btn active" data-gran="month">Mês</button>
+        <button type="button" class="seg-btn" data-gran="year">Ano</button>
+      </div>
+      <div id="review-stats" class="summary-cards"></div>
+      <div id="review-chart" class="chart-wrap"></div>
+      <p id="review-empty" class="empty" hidden>Ainda não há treinos para resumir. 💪</p>
+
+      <!-- Por exercício -->
+      <div class="prog-h prog-h-2">Por exercício</div>
       <label class="field">
         <span>Exercício</span>
         <select id="progress-exercise"></select>
