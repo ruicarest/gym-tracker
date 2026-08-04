@@ -23,11 +23,42 @@ export function estimate1RM(weight, reps) {
 function supabaseBackend(supabase) {
   return {
     kind: 'cloud',
+    requiresAuth: true,
+    spaceId: null,
+    setSpace(id) { this.spaceId = id; },
+
+    // ----- Autenticação -----
+    getSession() { return supabase.auth.getSession(); },
+    onAuthChange(cb) { return supabase.auth.onAuthStateChange((_e, session) => cb(session)); },
+    signUpEmail(email, password) { return supabase.auth.signUp({ email, password }); },
+    signInEmail(email, password) { return supabase.auth.signInWithPassword({ email, password }); },
+    signInGoogle() {
+      return supabase.auth.signInWithOAuth({ provider: 'google', options: { redirectTo: location.origin + location.pathname } });
+    },
+    signOut() { return supabase.auth.signOut(); },
+
+    // ----- Espaços partilhados -----
+    async mySpaces() {
+      const { data, error } = await supabase.from('spaces').select('id, name, invite_code').order('created_at');
+      if (error) throw error;
+      return data || [];
+    },
+    async createSpace(name) {
+      const { data, error } = await supabase.rpc('create_space', { p_name: name || '' });
+      if (error) throw error;
+      return Array.isArray(data) ? data[0] : data;
+    },
+    async joinSpace(code) {
+      const { data, error } = await supabase.rpc('join_space', { p_code: code });
+      if (error) throw error;
+      return Array.isArray(data) ? data[0] : data;
+    },
 
     async listExercises() {
       const { data, error } = await supabase
         .from('exercises')
         .select('id, name, kind, muscle_group, image_url')
+        .eq('space_id', this.spaceId)
         .order('name');
       if (error) throw error;
       return data;
@@ -38,6 +69,7 @@ function supabaseBackend(supabase) {
       const { data: found } = await supabase
         .from('exercises')
         .select('id, name, kind, muscle_group, image_url')
+        .eq('space_id', this.spaceId)
         .ilike('name', clean)
         .maybeSingle();
       if (found) {
@@ -50,7 +82,7 @@ function supabaseBackend(supabase) {
 
       const { data, error } = await supabase
         .from('exercises')
-        .insert({ name: clean, kind: exKind || 'strength', muscle_group: muscleGroup || null, image_url: imageUrl || null })
+        .insert({ name: clean, kind: exKind || 'strength', muscle_group: muscleGroup || null, image_url: imageUrl || null, space_id: this.spaceId })
         .select('id, name, kind, muscle_group, image_url')
         .single();
       if (error) throw error;
@@ -68,6 +100,7 @@ function supabaseBackend(supabase) {
           started_at: w.startedAt || null,
           ended_at: w.endedAt || null,
           duration_sec: w.durationSec ?? null,
+          space_id: this.spaceId,
         })
         .select('id')
         .single();
@@ -137,6 +170,7 @@ function supabaseBackend(supabase) {
             'entries(id, position, weight, weight_partner, reps, duration_min, distance_km, ' +
             'exercise:exercises(id, name, kind, muscle_group, image_url))'
         )
+        .eq('space_id', this.spaceId)
         .order('date', { ascending: false })
         .order('created_at', { ascending: false });
       if (error) throw error;
@@ -212,6 +246,8 @@ function localBackend() {
 
   return {
     kind: 'local',
+    requiresAuth: false,
+    setSpace() {},
 
     async listExercises() {
       return loadStore().exercises.slice().sort((a, b) => a.name.localeCompare(b.name));

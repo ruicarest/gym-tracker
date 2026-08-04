@@ -282,6 +282,32 @@ textarea { resize: vertical; }
 .detail-steps li { font-size: 0.88rem; line-height: 1.45; }
 .ex-thumb, .ex-thumb-sm { cursor: pointer; }
 
+/* ---------- Login / espaço ---------- */
+.auth-screen { min-height: 100vh; display: flex; align-items: center; justify-content: center; padding: 24px 18px; }
+.auth-card { width: 100%; max-width: 380px; background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); padding: 26px 22px calc(26px + env(safe-area-inset-bottom)); box-shadow: var(--shadow); text-align: center; }
+.auth-logo { font-size: 2.4rem; }
+.auth-h1 { font-size: 1.5rem; margin: 6px 0 4px; }
+.auth-sub { color: var(--muted); font-size: 0.9rem; margin: 0 0 20px; line-height: 1.5; }
+.auth-card form { display: flex; flex-direction: column; gap: 10px; }
+.auth-card input { text-align: left; }
+.auth-or { display: flex; align-items: center; gap: 10px; color: var(--muted); font-size: 0.78rem; margin: 16px 0; }
+.auth-or::before, .auth-or::after { content: ''; flex: 1; height: 1px; background: var(--border); }
+.btn-google { background: #fff; color: #1f1f1f; display: flex; align-items: center; justify-content: center; gap: 10px; }
+.auth-msg { font-size: 0.85rem; margin: 12px 0 0; padding: 9px 12px; border-radius: 8px; text-align: left; }
+.auth-msg.err { background: rgba(248, 113, 113, 0.12); color: var(--danger); border: 1px solid rgba(248, 113, 113, 0.3); }
+.auth-msg.ok { background: rgba(74, 222, 128, 0.12); color: var(--accent); border: 1px solid rgba(74, 222, 128, 0.3); }
+.auth-toggle { font-size: 0.85rem; color: var(--muted); margin: 16px 0 0; }
+.linkbtn { background: none; border: none; color: var(--accent); font-weight: 600; cursor: pointer; font-size: inherit; font-family: inherit; padding: 0; }
+
+.header-right { display: flex; align-items: center; gap: 8px; }
+#account-btn { font-size: 1.1rem; }
+.account-body { display: flex; flex-direction: column; gap: 14px; }
+.account-line { font-size: 0.85rem; color: var(--muted); margin: 0; }
+.account-line span, .account-line strong { color: var(--text); }
+.invite-box { background: var(--surface-2); border: 1px solid var(--border); border-radius: var(--radius); padding: 16px 14px; text-align: center; display: flex; flex-direction: column; gap: 8px; align-items: center; }
+.invite-label { font-size: 0.75rem; color: var(--muted); }
+.invite-code { font-size: 1.9rem; font-weight: 800; letter-spacing: 0.18em; color: var(--accent); }
+
 /* ---------- Segmented control (Eu / parceiro) ---------- */
 .seg {
   display: flex;

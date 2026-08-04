@@ -911,12 +911,19 @@ $('#history-list').addEventListener('click', (e) => {
 // ------------------------------------------------------------
 //  Arranque
 // ------------------------------------------------------------
-async function init() {
+let appBooted = false;
+let currentSpace = null;
+
+async function bootApp() {
+  if (appBooted) return;
+  appBooted = true;
   $('#workout-date').value = todayISO();
   applyPartnerUI();
   await refreshExerciseLists();
   restoreActive(); // retoma um treino em curso, se existir
+}
 
+function setBadge() {
   const badge = $('#backend-badge');
   if (db.kind === 'cloud') {
     badge.textContent = '☁ Cloud';
@@ -924,8 +931,100 @@ async function init() {
     badge.title = 'Ligado ao Supabase';
   } else {
     badge.textContent = '📱 Local';
-    badge.title = 'Guardado neste dispositivo (localStorage). Configura o Supabase para sincronizar.';
+    badge.title = 'Guardado neste dispositivo (localStorage).';
   }
+}
+
+function showScreen(which) { // 'auth' | 'space' | 'app'
+  $('#view-auth').hidden = which !== 'auth';
+  $('#view-space').hidden = which !== 'space';
+  $('#app-shell').hidden = which !== 'app';
+}
+
+function authMsg(m, err) { const el = $('#auth-msg'); el.textContent = m || ''; el.hidden = !m; el.className = 'auth-msg' + (m ? (err ? ' err' : ' ok') : ''); }
+function spaceMsg(m, err) { const el = $('#space-msg'); el.textContent = m || ''; el.hidden = !m; el.className = 'auth-msg' + (m ? (err ? ' err' : ' ok') : ''); }
+function fillAccount(session) {
+  $('#account-email').textContent = session?.user?.email || '(Google)';
+  $('#account-space').textContent = currentSpace?.name || '—';
+  $('#invite-code').textContent = currentSpace?.invite_code || '------';
+}
+
+async function routeAuth(session) {
+  if (!session) { appBooted = false; currentSpace = null; showScreen('auth'); return; }
+  let spaces = [];
+  try { spaces = await db.mySpaces(); } catch (e) { console.error(e); }
+  if (!spaces.length) { showScreen('space'); return; }
+  currentSpace = spaces[0];
+  db.setSpace(currentSpace.id);
+  fillAccount(session);
+  showScreen('app');
+  await bootApp();
+}
+
+function wireAuthUI() {
+  let mode = 'signin';
+  const paint = () => {
+    $('#auth-sub').textContent = mode === 'signin' ? 'Entra para registares os teus treinos.' : 'Cria a tua conta (registo instantâneo).';
+    $('#auth-submit').textContent = mode === 'signin' ? 'Entrar' : 'Criar conta';
+    $('#auth-pass').autocomplete = mode === 'signin' ? 'current-password' : 'new-password';
+    $('#auth-toggle-txt').textContent = mode === 'signin' ? 'Ainda não tens conta?' : 'Já tens conta?';
+    $('#auth-toggle-btn').textContent = mode === 'signin' ? 'Criar conta' : 'Entrar';
+  };
+  $('#auth-toggle-btn').addEventListener('click', () => { mode = mode === 'signin' ? 'signup' : 'signin'; authMsg(''); paint(); });
+  paint();
+
+  $('#auth-form').addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const email = $('#auth-email').value.trim(), pass = $('#auth-pass').value;
+    const btn = $('#auth-submit'); btn.disabled = true; authMsg('');
+    try {
+      const res = mode === 'signin' ? await db.signInEmail(email, pass) : await db.signUpEmail(email, pass);
+      if (res.error) authMsg(res.error.message, true);
+      else if (mode === 'signup' && !res.data.session) { authMsg('Conta criada! Confirma o email e depois entra.'); mode = 'signin'; paint(); }
+      // caso contrário, onAuthChange trata da rota
+    } catch (err) { authMsg(err.message || String(err), true); }
+    finally { btn.disabled = false; }
+  });
+
+  $('#google-btn').addEventListener('click', async () => {
+    authMsg('');
+    try { const res = await db.signInGoogle(); if (res?.error) authMsg(res.error.message, true); }
+    catch (err) { authMsg(err.message || String(err), true); }
+  });
+
+  $('#create-space-form').addEventListener('submit', async (e) => {
+    e.preventDefault(); spaceMsg('');
+    try { await db.createSpace($('#space-name').value); const { data } = await db.getSession(); routeAuth(data.session); }
+    catch (err) { spaceMsg(err.message || String(err), true); }
+  });
+  $('#join-space-form').addEventListener('submit', async (e) => {
+    e.preventDefault(); spaceMsg('');
+    try { await db.joinSpace($('#join-code').value); const { data } = await db.getSession(); routeAuth(data.session); }
+    catch (err) { spaceMsg(err.message || String(err), true); }
+  });
+  $('#space-logout').addEventListener('click', () => db.signOut());
+
+  $('#account-btn').addEventListener('click', () => { $('#account-overlay').hidden = false; });
+  $('#account-close').addEventListener('click', () => { $('#account-overlay').hidden = true; });
+  $('#account-overlay').addEventListener('click', (e) => { if (e.target.id === 'account-overlay') $('#account-overlay').hidden = true; });
+  $('#logout-btn').addEventListener('click', () => { $('#account-overlay').hidden = true; db.signOut(); });
+  $('#copy-code').addEventListener('click', () => {
+    const code = $('#invite-code').textContent;
+    if (navigator.clipboard) navigator.clipboard.writeText(code).then(() => toast('Código copiado 📋')).catch(() => {});
+  });
+}
+
+async function init() {
+  setBadge();
+  if (!db.requiresAuth) { // modo local — sem login
+    $('#account-btn').hidden = true;
+    showScreen('app');
+    await bootApp();
+    return;
+  }
+  $('#account-btn').hidden = false;
+  wireAuthUI();
+  db.onAuthChange((session) => setTimeout(() => routeAuth(session), 0));
 }
 
 init();

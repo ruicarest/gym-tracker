@@ -9,9 +9,54 @@
   <link rel="stylesheet" href="styles.css" />
 </head>
 <body>
+  <!-- ===================== LOGIN ===================== -->
+  <section id="view-auth" class="auth-screen" hidden>
+    <div class="auth-card">
+      <div class="auth-logo">🏋️</div>
+      <h1 class="auth-h1">Gym Tracker</h1>
+      <p id="auth-sub" class="auth-sub">Entra para registares os teus treinos.</p>
+      <button type="button" id="google-btn" class="btn btn-google full">
+        <svg viewBox="0 0 48 48" width="18" height="18" aria-hidden="true"><path fill="#EA4335" d="M24 9.5c3.5 0 6.6 1.2 9.1 3.6l6.8-6.8C35.9 2.4 30.3 0 24 0 14.6 0 6.5 5.4 2.6 13.2l7.9 6.1C12.4 13.2 17.7 9.5 24 9.5z"/><path fill="#4285F4" d="M46.1 24.5c0-1.6-.1-3.1-.4-4.5H24v9h12.4c-.5 2.9-2.1 5.3-4.6 6.9l7.1 5.5c4.2-3.9 6.6-9.6 6.6-16.9z"/><path fill="#FBBC05" d="M10.5 28.3c-.5-1.4-.8-2.9-.8-4.3s.3-3 .8-4.3l-7.9-6.1C.9 16.9 0 20.3 0 24s.9 7.1 2.6 10.4l7.9-6.1z"/><path fill="#34A853" d="M24 48c6.3 0 11.6-2.1 15.5-5.7l-7.1-5.5c-2 1.3-4.6 2.2-8.4 2.2-6.3 0-11.6-3.7-13.5-9.8l-7.9 6.1C6.5 42.6 14.6 48 24 48z"/></svg>
+        <span>Continuar com Google</span>
+      </button>
+      <div class="auth-or"><span>ou</span></div>
+      <form id="auth-form">
+        <input type="email" id="auth-email" placeholder="Email" autocomplete="email" required />
+        <input type="password" id="auth-pass" placeholder="Password (mín. 6)" autocomplete="current-password" minlength="6" required />
+        <button type="submit" id="auth-submit" class="btn primary full big">Entrar</button>
+      </form>
+      <p id="auth-msg" class="auth-msg" hidden></p>
+      <p class="auth-toggle"><span id="auth-toggle-txt">Ainda não tens conta?</span> <button type="button" id="auth-toggle-btn" class="linkbtn">Criar conta</button></p>
+    </div>
+  </section>
+
+  <!-- ===================== ESPAÇO ===================== -->
+  <section id="view-space" class="auth-screen" hidden>
+    <div class="auth-card">
+      <div class="auth-logo">🤝</div>
+      <h1 class="auth-h1">Quase lá!</h1>
+      <p class="auth-sub">Cria o teu espaço de treino, ou entra no de um amigo com o código.</p>
+      <form id="create-space-form">
+        <input type="text" id="space-name" placeholder="Nome do espaço (ex: Eu & Cláudia)" />
+        <button type="submit" class="btn primary full big">Criar o meu espaço</button>
+      </form>
+      <div class="auth-or"><span>ou</span></div>
+      <form id="join-space-form">
+        <input type="text" id="join-code" placeholder="Código de convite" autocapitalize="characters" autocomplete="off" />
+        <button type="submit" class="btn ghost full">Entrar com código</button>
+      </form>
+      <p id="space-msg" class="auth-msg" hidden></p>
+      <p class="auth-toggle"><button type="button" id="space-logout" class="linkbtn">Terminar sessão</button></p>
+    </div>
+  </section>
+
+  <div id="app-shell" hidden>
   <header class="app-header">
     <h1>🏋️ Gym Tracker</h1>
-    <span id="backend-badge" class="badge" title="Onde os dados estão guardados">…</span>
+    <div class="header-right">
+      <span id="backend-badge" class="badge" title="Onde os dados estão guardados">…</span>
+      <button type="button" id="account-btn" class="icon-btn" title="Conta" hidden>👤</button>
+    </div>
   </header>
 
   <main>
@@ -122,6 +167,7 @@
     <button class="tab" data-view="view-history"><span class="ico">📅</span>Histórico</button>
     <button class="tab" data-view="view-progress"><span class="ico">📈</span>Progresso</button>
   </nav>
+  </div><!-- /app-shell -->
 
   <div id="toast" class="toast" hidden></div>
 
@@ -216,6 +262,26 @@
         <button type="button" id="detail-close" class="icon-btn" title="Fechar">✕</button>
       </div>
       <div id="detail-body" class="detail-body"></div>
+    </div>
+  </div>
+
+  <!-- Painel de conta / convite -->
+  <div id="account-overlay" class="overlay" hidden>
+    <div class="overlay-card">
+      <div class="overlay-head">
+        <strong class="detail-title">Conta</strong>
+        <button type="button" id="account-close" class="icon-btn" title="Fechar">✕</button>
+      </div>
+      <div class="account-body">
+        <p class="account-line">Sessão: <span id="account-email">—</span></p>
+        <div class="invite-box">
+          <span class="invite-label">Código de convite do espaço "<span id="account-space">—</span>"</span>
+          <div class="invite-code" id="invite-code">------</div>
+          <button type="button" id="copy-code" class="btn ghost sm">Copiar código</button>
+          <p class="detail-note">Partilha este código com a Cláudia — ela cria conta e entra com ele para partilharem os treinos.</p>
+        </div>
+        <button type="button" id="logout-btn" class="btn ghost full">Terminar sessão</button>
+      </div>
     </div>
   </div>
 
