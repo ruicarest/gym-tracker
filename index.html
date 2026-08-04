@@ -40,7 +40,7 @@
 
       <div class="partner-bar">
         <label class="switch">
-          <input type="checkbox" id="partner-toggle" />
+          <input type="checkbox" id="partner-toggle" checked />
           <span class="switch-track"><span class="switch-thumb"></span></span>
           <span class="switch-label">Treino com parceiro/a</span>
         </label>
@@ -118,7 +118,10 @@
     <div class="exercise-card" data-kind="strength">
       <div class="exercise-head">
         <span class="kind-chip strength">🏋️</span>
-        <input class="ex-name" list="strength-options" placeholder="Nome do exercício (ex: Supino)" />
+        <div class="ex-pick">
+          <select class="ex-select"></select>
+          <input class="ex-name-new" placeholder="Nome do novo exercício (ex: Supino)" hidden />
+        </div>
         <button type="button" class="icon-btn remove-exercise" title="Remover exercício">✕</button>
       </div>
       <div class="sets"></div>
@@ -158,7 +161,10 @@
     <div class="exercise-card" data-kind="cardio">
       <div class="exercise-head">
         <span class="kind-chip cardio">🏃</span>
-        <input class="ex-name" list="cardio-options" placeholder="Corrida, Bicicleta, Remo, Elíptica…" />
+        <div class="ex-pick">
+          <select class="ex-select"></select>
+          <input class="ex-name-new" placeholder="Nome do novo exercício de cardio" hidden />
+        </div>
         <button type="button" class="icon-btn remove-exercise" title="Remover exercício">✕</button>
       </div>
       <div class="cardio-fields">
@@ -173,14 +179,6 @@
       </div>
     </div>
   </template>
-
-  <datalist id="strength-options"></datalist>
-  <datalist id="cardio-options">
-    <option value="Corrida"></option>
-    <option value="Bicicleta"></option>
-    <option value="Remo"></option>
-    <option value="Elíptica"></option>
-  </datalist>
 
   <script type="module" src="app.js"></script>
 </body>

@@ -148,6 +148,39 @@ function endSession() {
 // ------------------------------------------------------------
 //  Cartões de exercício (força / cardio)
 // ------------------------------------------------------------
+let exerciseCache = [];
+const sameKind = (e, kind) => (kind === 'cardio' ? e.kind === 'cardio' : e.kind !== 'cardio');
+
+// Preenche o <select> com os exercícios guardados + "➕ Novo…".
+function populateSelect(sel, kind, selectedName) {
+  const list = exerciseCache.filter((e) => sameKind(e, kind));
+  const opts = [`<option value="" disabled${selectedName ? '' : ' selected'}>Escolher exercício…</option>`];
+  for (const e of list) {
+    opts.push(`<option value="${escapeHtml(e.name)}"${e.name === selectedName ? ' selected' : ''}>${escapeHtml(e.name)}</option>`);
+  }
+  opts.push('<option value="__new__">➕ Novo exercício…</option>');
+  sel.innerHTML = opts.join('');
+}
+
+function buildExPicker(node, kind, dataName) {
+  const sel = node.querySelector('.ex-select');
+  const newInput = node.querySelector('.ex-name-new');
+  populateSelect(sel, kind, dataName);
+  // Nome guardado que ainda não existe no catálogo → modo "novo" já preenchido.
+  if (dataName && !exerciseCache.some((e) => sameKind(e, kind) && e.name === dataName)) {
+    sel.value = '__new__';
+    newInput.hidden = false;
+    newInput.value = dataName;
+  }
+  sel.addEventListener('change', () => {
+    const isNew = sel.value === '__new__';
+    newInput.hidden = !isNew;
+    if (isNew) { newInput.value = ''; newInput.focus(); }
+    persistActive();
+  });
+  newInput.addEventListener('input', persistActive);
+}
+
 function addSetRow(setsEl, data = {}) {
   const node = $('#set-template').content.firstElementChild.cloneNode(true);
   node.querySelector('.set-weight').value = data.weight ?? '';
@@ -169,23 +202,23 @@ function renumberSets(setsEl) {
 function addStrengthCard(data = null) {
   const node = $('#strength-template').content.firstElementChild.cloneNode(true);
   const setsEl = node.querySelector('.sets');
-  node.querySelector('.ex-name').value = data?.name ?? '';
+  buildExPicker(node, 'strength', data?.name);
   node.querySelector('.add-set').addEventListener('click', () => { addSetRow(setsEl); persistActive(); });
   node.querySelector('.remove-exercise').addEventListener('click', () => { node.remove(); persistActive(); });
   const sets = data?.sets?.length ? data.sets : [{}];
   sets.forEach((s) => addSetRow(setsEl, s));
   exercisesEl.appendChild(node);
-  if (!data) node.querySelector('.ex-name').focus();
+  if (!data) node.querySelector('.ex-select').focus();
 }
 
 function addCardioCard(data = null) {
   const node = $('#cardio-template').content.firstElementChild.cloneNode(true);
-  node.querySelector('.ex-name').value = data?.name ?? '';
+  buildExPicker(node, 'cardio', data?.name);
   node.querySelector('.cardio-duration').value = data?.durationMin ?? '';
   node.querySelector('.cardio-distance').value = data?.distanceKm ?? '';
   node.querySelector('.remove-exercise').addEventListener('click', () => { node.remove(); persistActive(); });
   exercisesEl.appendChild(node);
-  if (!data) node.querySelector('.ex-name').focus();
+  if (!data) node.querySelector('.ex-select').focus();
 }
 
 $('#add-strength').addEventListener('click', () => { addStrengthCard(); persistActive(); });
@@ -202,7 +235,9 @@ $('#workout-type').addEventListener('input', persistActive);
 function readExercisesFromDOM() {
   return $$('.exercise-card').map((card) => {
     const kind = card.dataset.kind;
-    const name = card.querySelector('.ex-name').value;
+    const sel = card.querySelector('.ex-select');
+    const newInput = card.querySelector('.ex-name-new');
+    const name = sel.value === '__new__' ? newInput.value : sel.value;
     if (kind === 'strength') {
       const sets = $$('.set-row', card).map((row) => ({
         weight: row.querySelector('.set-weight').value,
@@ -539,15 +574,11 @@ function buildChart(points, valueFn, isCardio) {
 }
 
 // ------------------------------------------------------------
-//  Datalists (autocomplete no formulário)
+//  Catálogo de exercícios (para os <select>)
 // ------------------------------------------------------------
 async function refreshExerciseLists() {
   try {
-    const exercises = await db.listExercises();
-    const opts = (list) => list.map((e) => `<option value="${escapeHtml(e.name)}"></option>`).join('');
-    $('#strength-options').innerHTML = opts(exercises.filter((e) => e.kind !== 'cardio'));
-    const cardio = exercises.filter((e) => e.kind === 'cardio');
-    if (cardio.length) $('#cardio-options').innerHTML = opts(cardio);
+    exerciseCache = await db.listExercises();
   } catch (err) {
     console.error(err);
   }
@@ -556,10 +587,10 @@ async function refreshExerciseLists() {
 // ------------------------------------------------------------
 //  Arranque
 // ------------------------------------------------------------
-function init() {
+async function init() {
   $('#workout-date').value = todayISO();
   applyPartnerUI();
-  refreshExerciseLists();
+  await refreshExerciseLists();
   restoreActive(); // retoma um treino em curso, se existir
 
   const badge = $('#backend-badge');
