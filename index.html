@@ -121,7 +121,9 @@
         <div class="ex-pick">
           <select class="ex-select"></select>
           <input class="ex-name-new" placeholder="Nome do novo exercício (ex: Supino)" hidden />
+          <button type="button" class="pick-image btn ghost sm" hidden>🔍 Escolher imagem</button>
         </div>
+        <img class="ex-thumb" alt="" hidden />
         <button type="button" class="icon-btn remove-exercise" title="Remover exercício">✕</button>
       </div>
       <div class="sets"></div>
@@ -164,7 +166,9 @@
         <div class="ex-pick">
           <select class="ex-select"></select>
           <input class="ex-name-new" placeholder="Nome do novo exercício de cardio" hidden />
+          <button type="button" class="pick-image btn ghost sm" hidden>🔍 Escolher imagem</button>
         </div>
+        <img class="ex-thumb" alt="" hidden />
         <button type="button" class="icon-btn remove-exercise" title="Remover exercício">✕</button>
       </div>
       <div class="cardio-fields">
@@ -179,6 +183,18 @@
       </div>
     </div>
   </template>
+
+  <!-- Overlay de pesquisa de imagens (free-exercise-db) -->
+  <div id="img-overlay" class="overlay" hidden>
+    <div class="overlay-card">
+      <div class="overlay-head">
+        <input type="text" id="img-search" placeholder="Pesquisar (ex: bench, squat, curl)…" autocomplete="off" />
+        <button type="button" id="img-close" class="icon-btn" title="Fechar">✕</button>
+      </div>
+      <p id="img-status" class="img-status"></p>
+      <div id="img-results" class="img-results"></div>
+    </div>
+  </div>
 
   <script type="module" src="app.js"></script>
 </body>

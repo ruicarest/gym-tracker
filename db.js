@@ -27,25 +27,31 @@ function supabaseBackend(supabase) {
     async listExercises() {
       const { data, error } = await supabase
         .from('exercises')
-        .select('id, name, kind, muscle_group')
+        .select('id, name, kind, muscle_group, image_url')
         .order('name');
       if (error) throw error;
       return data;
     },
 
-    async getOrCreateExercise(name, exKind, muscleGroup) {
+    async getOrCreateExercise(name, exKind, muscleGroup, imageUrl) {
       const clean = name.trim();
       const { data: found } = await supabase
         .from('exercises')
-        .select('id, name, kind, muscle_group')
+        .select('id, name, kind, muscle_group, image_url')
         .ilike('name', clean)
         .maybeSingle();
-      if (found) return found;
+      if (found) {
+        if (imageUrl && !found.image_url) {
+          await supabase.from('exercises').update({ image_url: imageUrl }).eq('id', found.id);
+          found.image_url = imageUrl;
+        }
+        return found;
+      }
 
       const { data, error } = await supabase
         .from('exercises')
-        .insert({ name: clean, kind: exKind || 'strength', muscle_group: muscleGroup || null })
-        .select('id, name, kind, muscle_group')
+        .insert({ name: clean, kind: exKind || 'strength', muscle_group: muscleGroup || null, image_url: imageUrl || null })
+        .select('id, name, kind, muscle_group, image_url')
         .single();
       if (error) throw error;
       return data;
@@ -70,7 +76,7 @@ function supabaseBackend(supabase) {
       const rows = [];
       let pos = 0;
       for (const entry of w.entries) {
-        const ex = await this.getOrCreateExercise(entry.name, entry.kind, entry.muscleGroup);
+        const ex = await this.getOrCreateExercise(entry.name, entry.kind, entry.muscleGroup, entry.imageUrl);
         for (const r of entry.rows) {
           rows.push({
             workout_id: workout.id,
@@ -97,7 +103,7 @@ function supabaseBackend(supabase) {
         .select(
           'id, date, type, notes, partner, duration_sec, ' +
             'entries(id, position, weight, weight_partner, reps, duration_min, distance_km, ' +
-            'exercise:exercises(id, name, kind, muscle_group))'
+            'exercise:exercises(id, name, kind, muscle_group, image_url))'
         )
         .order('date', { ascending: false })
         .order('created_at', { ascending: false });
@@ -160,12 +166,14 @@ function localBackend() {
     saveStore(seed);
   }
 
-  function findOrCreate(store, name, exKind, muscleGroup) {
+  function findOrCreate(store, name, exKind, muscleGroup, imageUrl) {
     const clean = name.trim();
     let ex = store.exercises.find((e) => e.name.toLowerCase() === clean.toLowerCase());
     if (!ex) {
-      ex = { id: uid(), name: clean, kind: exKind || 'strength', muscle_group: muscleGroup || null };
+      ex = { id: uid(), name: clean, kind: exKind || 'strength', muscle_group: muscleGroup || null, image_url: imageUrl || null };
       store.exercises.push(ex);
+    } else if (imageUrl && !ex.image_url) {
+      ex.image_url = imageUrl;
     }
     return ex;
   }
@@ -177,9 +185,9 @@ function localBackend() {
       return loadStore().exercises.slice().sort((a, b) => a.name.localeCompare(b.name));
     },
 
-    async getOrCreateExercise(name, exKind, muscleGroup) {
+    async getOrCreateExercise(name, exKind, muscleGroup, imageUrl) {
       const store = loadStore();
-      const ex = findOrCreate(store, name, exKind, muscleGroup);
+      const ex = findOrCreate(store, name, exKind, muscleGroup, imageUrl);
       saveStore(store);
       return ex;
     },
@@ -201,7 +209,7 @@ function localBackend() {
 
       let pos = 0;
       for (const entry of w.entries) {
-        const ex = findOrCreate(store, entry.name, entry.kind, entry.muscleGroup);
+        const ex = findOrCreate(store, entry.name, entry.kind, entry.muscleGroup, entry.imageUrl);
         for (const r of entry.rows) {
           store.entries.push({
             id: uid(),

@@ -203,11 +203,15 @@ function buildExPicker(node, kind, dataName) {
   sel.addEventListener('change', async () => {
     const isNew = sel.value === '__new__';
     newInput.hidden = !isNew;
+    delete node.dataset.imageUrl; // mudou de exercício → esquece imagem escolhida
     if (isNew) { newInput.value = ''; newInput.focus(); }
     else if (sel.value) await prefillFromHistory(node, sel.value, kind);
+    updateCardImage(node);
     persistActive();
   });
   newInput.addEventListener('input', persistActive);
+  node.querySelector('.pick-image').addEventListener('click', () => openImagePicker(node));
+  updateCardImage(node);
 }
 
 function addSetRow(setsEl, data = {}) {
@@ -231,6 +235,7 @@ function renumberSets(setsEl) {
 function addStrengthCard(data = null) {
   const node = $('#strength-template').content.firstElementChild.cloneNode(true);
   const setsEl = node.querySelector('.sets');
+  if (data?.imageUrl) node.dataset.imageUrl = data.imageUrl;
   buildExPicker(node, 'strength', data?.name);
   node.querySelector('.add-set').addEventListener('click', () => { addSetRow(setsEl); persistActive(); });
   node.querySelector('.remove-exercise').addEventListener('click', () => { node.remove(); persistActive(); });
@@ -242,6 +247,7 @@ function addStrengthCard(data = null) {
 
 function addCardioCard(data = null) {
   const node = $('#cardio-template').content.firstElementChild.cloneNode(true);
+  if (data?.imageUrl) node.dataset.imageUrl = data.imageUrl;
   buildExPicker(node, 'cardio', data?.name);
   node.querySelector('.cardio-duration').value = data?.durationMin ?? '';
   node.querySelector('.cardio-distance').value = data?.distanceKm ?? '';
@@ -267,16 +273,17 @@ function readExercisesFromDOM() {
     const sel = card.querySelector('.ex-select');
     const newInput = card.querySelector('.ex-name-new');
     const name = sel.value === '__new__' ? newInput.value : sel.value;
+    const imageUrl = card.dataset.imageUrl || '';
     if (kind === 'strength') {
       const sets = $$('.set-row', card).map((row) => ({
         weight: row.querySelector('.set-weight').value,
         weightPartner: row.querySelector('.set-weight-partner').value,
         reps: row.querySelector('.set-reps').value,
       }));
-      return { kind, name, sets };
+      return { kind, name, imageUrl, sets };
     }
     return {
-      kind, name,
+      kind, name, imageUrl,
       durationMin: card.querySelector('.cardio-duration').value,
       distanceKm: card.querySelector('.cardio-distance').value,
     };
@@ -342,12 +349,12 @@ $('#finish-btn').addEventListener('click', async (e) => {
           reps,
         });
       }
-      if (rows.length) entries.push({ name, kind: 'strength', rows });
+      if (rows.length) entries.push({ name, kind: 'strength', imageUrl: ex.imageUrl || null, rows });
     } else {
       const dur = parseFloat(ex.durationMin);
       const dist = parseFloat(ex.distanceKm);
       if (!dur && !dist) continue;
-      entries.push({ name, kind: 'cardio', muscleGroup: 'cardio', rows: [{ durationMin: dur || null, distanceKm: dist || null }] });
+      entries.push({ name, kind: 'cardio', muscleGroup: 'cardio', imageUrl: ex.imageUrl || null, rows: [{ durationMin: dur || null, distanceKm: dist || null }] });
     }
   }
 
@@ -454,13 +461,16 @@ async function renderHistory() {
 
 function exerciseLine(g, partner) {
   const icon = g.kind === 'cardio' ? '🏃' : '🏋️';
+  const lead = g.exercise.image_url
+    ? `<img class="ex-thumb-sm" src="${escapeHtml(g.exercise.image_url)}" alt="" />`
+    : icon;
   if (g.kind === 'cardio') {
     const r = g.rows[0] || {};
     const parts = [];
     if (r.durationMin) parts.push(`${fmtNum(r.durationMin)} min`);
     if (r.distanceKm) parts.push(`${fmtNum(r.distanceKm)} km`);
     return `<div class="exercise-line">
-      <div class="ex-title">${icon} ${escapeHtml(g.exercise.name)}</div>
+      <div class="ex-title">${lead} ${escapeHtml(g.exercise.name)}</div>
       <div class="ex-sets">${parts.join(' · ') || '—'}</div>
     </div>`;
   }
@@ -471,7 +481,7 @@ function exerciseLine(g, partner) {
     : '';
   const myLabel = hasPartner ? `<span class="ppl">Eu:</span> ` : '';
   return `<div class="exercise-line">
-    <div class="ex-title">${icon} ${escapeHtml(g.exercise.name)}</div>
+    <div class="ex-title">${lead} ${escapeHtml(g.exercise.name)}</div>
     <div class="ex-sets">${myLabel}${mine}</div>
     ${partnerLine}
   </div>`;
@@ -612,6 +622,112 @@ async function refreshExerciseLists() {
     console.error(err);
   }
 }
+
+// ------------------------------------------------------------
+//  Imagens de exercícios (free-exercise-db, grátis, sem chave)
+// ------------------------------------------------------------
+const DB_URL = 'https://cdn.jsdelivr.net/gh/yuhonas/free-exercise-db@main/dist/exercises.json';
+const IMG_BASE = 'https://cdn.jsdelivr.net/gh/yuhonas/free-exercise-db@main/exercises/';
+// Sinónimos PT→EN para a pesquisa (a base está em inglês).
+const PT_SYN = {
+  supino: 'bench', agachamento: 'squat', 'peso morto': 'deadlift', rosca: 'curl',
+  biceps: 'curl', bíceps: 'curl', triceps: 'tricep', tríceps: 'tricep', remada: 'row',
+  desenvolvimento: 'press', ombro: 'shoulder', ombros: 'shoulder', afundo: 'lunge',
+  extensao: 'extension', extensão: 'extension', flexao: 'push-up', flexão: 'push-up',
+  peito: 'chest', costas: 'back', perna: 'leg', pernas: 'leg', gluteo: 'glute', glúteo: 'glute',
+  elevacao: 'raise', elevação: 'raise', panturrilha: 'calf', gemeos: 'calf', gémeos: 'calf',
+  abdominais: 'crunch', abdominal: 'crunch', prancha: 'plank',
+};
+
+let exerciseDb = null;
+let imgTargetCard = null;
+
+async function loadExerciseDb() {
+  if (exerciseDb) return exerciseDb;
+  $('#img-status').textContent = 'A carregar base de exercícios…';
+  try {
+    exerciseDb = await (await fetch(DB_URL)).json();
+    $('#img-status').textContent = '';
+  } catch (e) {
+    console.error(e);
+    exerciseDb = [];
+    $('#img-status').textContent = 'Não foi possível carregar as imagens.';
+  }
+  return exerciseDb;
+}
+
+function searchTerms(q) {
+  q = (q || '').toLowerCase().trim();
+  const terms = new Set();
+  if (q) terms.add(q);
+  for (const [pt, en] of Object.entries(PT_SYN)) if (q.includes(pt)) terms.add(en);
+  return [...terms];
+}
+
+function renderImageResults(q) {
+  const results = $('#img-results');
+  if (!exerciseDb || !exerciseDb.length) { results.innerHTML = ''; return; }
+  const terms = searchTerms(q);
+  const list = !terms.length
+    ? exerciseDb.slice(0, 24)
+    : exerciseDb.filter((e) => { const n = e.name.toLowerCase(); return terms.some((t) => n.includes(t)); }).slice(0, 30);
+  if (!list.length) {
+    results.innerHTML = '';
+    $('#img-status').textContent = 'Sem resultados. Tenta em inglês (bench, squat…).';
+    return;
+  }
+  $('#img-status').textContent = '';
+  results.innerHTML = list.map((e) => {
+    const url = IMG_BASE + (e.images && e.images[0] ? e.images[0] : '');
+    return `<div class="img-item" data-url="${escapeHtml(url)}"><img loading="lazy" src="${escapeHtml(url)}" alt="${escapeHtml(e.name)}" /><span>${escapeHtml(e.name)}</span></div>`;
+  }).join('');
+  $$('.img-item', results).forEach((el) => el.addEventListener('click', () => pickImage(el.dataset.url)));
+}
+
+async function openImagePicker(card) {
+  imgTargetCard = card;
+  $('#img-overlay').hidden = false;
+  const search = $('#img-search');
+  const typed = card.querySelector('.ex-name-new')?.value?.trim() || '';
+  search.value = typed;
+  await loadExerciseDb();
+  renderImageResults(search.value);
+  search.focus();
+}
+
+function pickImage(url) {
+  if (imgTargetCard) {
+    imgTargetCard.dataset.imageUrl = url;
+    updateCardImage(imgTargetCard);
+    persistActive();
+  }
+  closeImagePicker();
+}
+
+function closeImagePicker() {
+  $('#img-overlay').hidden = true;
+  imgTargetCard = null;
+}
+
+// Mostra miniatura + botão de escolher imagem conforme o estado do cartão.
+function updateCardImage(card) {
+  const sel = card.querySelector('.ex-select');
+  const val = sel.value;
+  const thumb = card.querySelector('.ex-thumb');
+  const pickBtn = card.querySelector('.pick-image');
+  let img = card.dataset.imageUrl || '';
+  if (!img && val && val !== '__new__') {
+    const ex = exerciseCache.find((e) => e.name === val);
+    if (ex && ex.image_url) img = ex.image_url;
+  }
+  if (img) { thumb.src = img; thumb.hidden = false; } else { thumb.hidden = true; thumb.removeAttribute('src'); }
+  const isNew = val === '__new__';
+  pickBtn.hidden = !(isNew || (val && val !== '__new__' && !img));
+}
+
+$('#img-close').addEventListener('click', closeImagePicker);
+$('#img-overlay').addEventListener('click', (e) => { if (e.target.id === 'img-overlay') closeImagePicker(); });
+$('#img-search').addEventListener('input', (e) => renderImageResults(e.target.value));
 
 // ------------------------------------------------------------
 //  Arranque
