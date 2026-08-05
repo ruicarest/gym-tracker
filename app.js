@@ -157,10 +157,10 @@ function loadWorkoutForEdit(w) {
     const imageUrl = g.exercise.image_url || '';
     if (g.kind === 'cardio') {
       const r = g.rows[0] || {};
-      addCardioCard({ name, imageUrl, durationMin: r.durationMin ?? '', distanceKm: r.distanceKm ?? '', inclinePct: r.inclinePct ?? '' });
+      addCardioCard({ name, imageUrl, forWho: g.forWho, durationMin: r.durationMin ?? '', distanceKm: r.distanceKm ?? '', inclinePct: r.inclinePct ?? '' });
     } else {
       const sets = g.rows.map((r) => ({ weight: r.weight ?? '', weightPartner: r.weightPartner ?? '', reps: r.reps ?? '' }));
-      addStrengthCard({ name, imageUrl, sets });
+      addStrengthCard({ name, imageUrl, forWho: g.forWho, sets });
     }
   }
 
@@ -262,6 +262,13 @@ function buildExPicker(node, kind, dataName) {
     if (src) openExerciseDetail(src, exNameOf(node));
   });
   node.querySelector('.collapse-btn').addEventListener('click', () => toggleDone(node));
+  const pn = node.querySelector('.for-who .partner-name');
+  if (pn) pn.textContent = partnerName();
+  $$('.for-who .seg-btn', node).forEach((b) => b.addEventListener('click', () => {
+    node.dataset.forWho = b.dataset.for;
+    applyForWho(node);
+    persistActive();
+  }));
   updateCardImage(node);
 }
 
@@ -321,12 +328,18 @@ function toggleDone(card) {
   }
   persistActive();
 }
+function applyForWho(card) {
+  const val = card.dataset.forWho || 'both';
+  $$('.for-who .seg-btn', card).forEach((b) => b.classList.toggle('active', b.dataset.for === val));
+}
 
 function addStrengthCard(data = null, { prepend = false } = {}) {
   const node = $('#strength-template').content.firstElementChild.cloneNode(true);
   const setsEl = node.querySelector('.sets');
   if (data?.imageUrl) node.dataset.imageUrl = data.imageUrl;
   buildExPicker(node, 'strength', data?.name);
+  node.dataset.forWho = data?.forWho || 'both';
+  applyForWho(node);
   node.querySelector('.add-set').addEventListener('click', () => {
     // Nova série copia os valores da anterior (mais rápido de registar).
     const rows = $$('.set-row', setsEl);
@@ -350,6 +363,8 @@ function addCardioCard(data = null, { prepend = false } = {}) {
   const node = $('#cardio-template').content.firstElementChild.cloneNode(true);
   if (data?.imageUrl) node.dataset.imageUrl = data.imageUrl;
   buildExPicker(node, 'cardio', data?.name);
+  node.dataset.forWho = data?.forWho || 'both';
+  applyForWho(node);
   node.querySelector('.cardio-duration').value = data?.durationMin ?? '';
   node.querySelector('.cardio-distance').value = data?.distanceKm ?? '';
   node.querySelector('.cardio-incline').value = data?.inclinePct ?? '';
@@ -378,16 +393,17 @@ function readExercisesFromDOM() {
     const name = sel.value === '__new__' ? newInput.value : sel.value;
     const imageUrl = card.dataset.imageUrl || '';
     const done = card.classList.contains('done');
+    const forWho = card.dataset.forWho || 'both';
     if (kind === 'strength') {
       const sets = $$('.set-row', card).map((row) => ({
         weight: row.querySelector('.set-weight').value,
         weightPartner: row.querySelector('.set-weight-partner').value,
         reps: row.querySelector('.set-reps').value,
       }));
-      return { kind, name, imageUrl, done, sets };
+      return { kind, name, imageUrl, done, forWho, sets };
     }
     return {
-      kind, name, imageUrl, done,
+      kind, name, imageUrl, done, forWho,
       durationMin: card.querySelector('.cardio-duration').value,
       distanceKm: card.querySelector('.cardio-distance').value,
       inclinePct: card.querySelector('.cardio-incline').value,
@@ -444,15 +460,16 @@ $('#finish-btn').addEventListener('click', async (e) => {
     const name = (ex.name || '').trim();
     if (!name) continue;
     if (ex.kind === 'strength') {
+      const fw = partnerOn ? (ex.forWho || 'both') : 'me';
       const rows = [];
       for (const s of ex.sets) {
         const reps = parseInt(s.reps, 10);
         if (!reps || reps <= 0) continue;
-        rows.push({
-          weight: parseFloat(s.weight) || 0,
-          weightPartner: partnerOn ? (parseFloat(s.weightPartner) || null) : null,
-          reps,
-        });
+        let weight = null, weightPartner = null;
+        if (fw === 'partner') weightPartner = parseFloat(s.weightPartner) || 0;
+        else if (fw === 'me') weight = parseFloat(s.weight) || 0;
+        else { weight = parseFloat(s.weight) || 0; weightPartner = parseFloat(s.weightPartner) || null; }
+        rows.push({ weight, weightPartner, reps, forWho: fw });
       }
       if (rows.length) entries.push({ name, kind: 'strength', imageUrl: ex.imageUrl || null, rows });
     } else {
@@ -460,7 +477,8 @@ $('#finish-btn').addEventListener('click', async (e) => {
       const dist = parseFloat(ex.distanceKm);
       const inc = parseFloat(ex.inclinePct);
       if (!dur && !dist) continue;
-      entries.push({ name, kind: 'cardio', muscleGroup: 'cardio', imageUrl: ex.imageUrl || null, rows: [{ durationMin: dur || null, distanceKm: dist || null, inclinePct: inc || null }] });
+      const fw = partnerOn ? (ex.forWho || 'both') : null;
+      entries.push({ name, kind: 'cardio', muscleGroup: 'cardio', imageUrl: ex.imageUrl || null, rows: [{ durationMin: dur || null, distanceKm: dist || null, inclinePct: inc || null, forWho: fw }] });
     }
   }
 
@@ -579,6 +597,11 @@ function exerciseLine(g, partner) {
   const lead = g.exercise.image_url
     ? `<img class="ex-thumb-sm" src="${escapeHtml(g.exercise.image_url)}" data-name="${escapeHtml(g.exercise.name)}" alt="" />`
     : icon;
+  const forWho = g.forWho || 'both';
+  const partnerLabel = partner || 'Parceiro/a';
+  const whoTag = (partner && forWho === 'me') ? ` <span class="ppl">(Eu)</span>`
+    : (partner && forWho === 'partner') ? ` <span class="ppl">(${escapeHtml(partnerLabel)})</span>` : '';
+
   if (g.kind === 'cardio') {
     const r = g.rows[0] || {};
     const parts = [];
@@ -586,20 +609,26 @@ function exerciseLine(g, partner) {
     if (r.distanceKm) parts.push(`${fmtNum(r.distanceKm)} km`);
     if (r.inclinePct) parts.push(`${fmtNum(r.inclinePct)}% incl.`);
     return `<div class="exercise-line">
-      <div class="ex-title">${lead} ${escapeHtml(g.exercise.name)}</div>
+      <div class="ex-title">${lead} ${escapeHtml(g.exercise.name)}${whoTag}</div>
       <div class="ex-sets">${parts.join(' · ') || '—'}</div>
     </div>`;
   }
-  const mine = g.rows.map((r) => `${fmtNum(r.weight)}×${r.reps}`).join(' · ');
-  const hasPartner = partner && g.rows.some((r) => r.weightPartner != null);
-  const partnerLine = hasPartner
-    ? `<div class="ex-sets"><span class="ppl">${escapeHtml(partner)}:</span> ${g.rows.map((r) => `${fmtNum(r.weightPartner)}×${r.reps}`).join(' · ')}</div>`
-    : '';
-  const myLabel = hasPartner ? `<span class="ppl">Eu:</span> ` : '';
+
+  if (partner && forWho === 'both') {
+    const mine = g.rows.map((r) => `${fmtNum(r.weight)}×${r.reps}`).join(' · ');
+    const theirs = g.rows.map((r) => `${fmtNum(r.weightPartner)}×${r.reps}`).join(' · ');
+    return `<div class="exercise-line">
+      <div class="ex-title">${lead} ${escapeHtml(g.exercise.name)}</div>
+      <div class="ex-sets"><span class="ppl">Eu:</span> ${mine}</div>
+      <div class="ex-sets"><span class="ppl">${escapeHtml(partnerLabel)}:</span> ${theirs}</div>
+    </div>`;
+  }
+  const line = forWho === 'partner'
+    ? g.rows.map((r) => `${fmtNum(r.weightPartner)}×${r.reps}`).join(' · ')
+    : g.rows.map((r) => `${fmtNum(r.weight)}×${r.reps}`).join(' · ');
   return `<div class="exercise-line">
-    <div class="ex-title">${lead} ${escapeHtml(g.exercise.name)}</div>
-    <div class="ex-sets">${myLabel}${mine}</div>
-    ${partnerLine}
+    <div class="ex-title">${lead} ${escapeHtml(g.exercise.name)}${whoTag}</div>
+    <div class="ex-sets">${line}</div>
   </div>`;
 }
 

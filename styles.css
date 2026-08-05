@@ -241,6 +241,16 @@ textarea { resize: vertical; }
 .ex-done-summary { display: none; }
 .exercise-card.done .ex-done-summary { display: block; color: var(--muted); font-size: 0.85rem; padding: 2px 2px 0; }
 
+/* ---------- Para quem (por exercício) ---------- */
+.for-who { margin-bottom: 10px; }
+body:not(.partner-on) .for-who { display: none; }
+.exercise-card.done .for-who { display: none; }
+.for-who .seg-btn { padding: 6px; font-size: 0.82rem; }
+.exercise-card[data-for-who="me"] .set-partner { display: none; }
+.exercise-card[data-for-who="me"] .wcaps .partner-name { display: none; }
+.exercise-card[data-for-who="partner"] .set-me { display: none; }
+.exercise-card[data-for-who="partner"] .wcaps .me-label { display: none; }
+
 /* ---------- Imagem do exercício ---------- */
 .ex-thumb {
   width: 46px; height: 46px; flex: none;
