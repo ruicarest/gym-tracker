@@ -120,6 +120,8 @@ function supabaseBackend(supabase) {
             reps: r.reps ?? null,
             duration_min: r.durationMin ?? null,
             distance_km: r.distanceKm ?? null,
+            incline_pct: r.inclinePct ?? null,
+            for_who: r.forWho ?? null,
           });
         }
       }
@@ -152,6 +154,7 @@ function supabaseBackend(supabase) {
             workout_id: id, exercise_id: ex.id, position: ++pos,
             weight: r.weight ?? null, weight_partner: r.weightPartner ?? null, reps: r.reps ?? null,
             duration_min: r.durationMin ?? null, distance_km: r.distanceKm ?? null,
+            incline_pct: r.inclinePct ?? null, for_who: r.forWho ?? null,
           });
         }
       }
@@ -167,7 +170,7 @@ function supabaseBackend(supabase) {
         .from('workouts')
         .select(
           'id, date, type, notes, partner, duration_sec, started_at, ' +
-            'entries(id, position, weight, weight_partner, reps, duration_min, distance_km, ' +
+            'entries(id, position, weight, weight_partner, reps, duration_min, distance_km, incline_pct, for_who, ' +
             'exercise:exercises(id, name, kind, muscle_group, image_url))'
         )
         .eq('space_id', this.spaceId)
@@ -289,6 +292,8 @@ function localBackend() {
             reps: r.reps ?? null,
             duration_min: r.durationMin ?? null,
             distance_km: r.distanceKm ?? null,
+            incline_pct: r.inclinePct ?? null,
+            for_who: r.forWho ?? null,
           });
         }
       }
@@ -314,6 +319,7 @@ function localBackend() {
             id: uid(), workout_id: id, exercise_id: ex.id, position: ++pos,
             weight: r.weight ?? null, weight_partner: r.weightPartner ?? null, reps: r.reps ?? null,
             duration_min: r.durationMin ?? null, distance_km: r.distanceKm ?? null,
+            incline_pct: r.inclinePct ?? null, for_who: r.forWho ?? null,
           });
         }
       }
@@ -370,13 +376,14 @@ function normalizeWorkout(w) {
   const groups = new Map();
   for (const s of w.entries || []) {
     const ex = s.exercise || { id: s.exercise_id, name: '—', kind: 'strength' };
-    if (!groups.has(ex.id)) groups.set(ex.id, { exercise: ex, kind: ex.kind || 'strength', rows: [] });
+    if (!groups.has(ex.id)) groups.set(ex.id, { exercise: ex, kind: ex.kind || 'strength', forWho: s.for_who || 'both', rows: [] });
     groups.get(ex.id).rows.push({
       weight: s.weight,
       weightPartner: s.weight_partner,
       reps: s.reps,
       durationMin: s.duration_min,
       distanceKm: s.distance_km,
+      inclinePct: s.incline_pct,
       position: s.position,
     });
   }

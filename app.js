@@ -157,7 +157,7 @@ function loadWorkoutForEdit(w) {
     const imageUrl = g.exercise.image_url || '';
     if (g.kind === 'cardio') {
       const r = g.rows[0] || {};
-      addCardioCard({ name, imageUrl, durationMin: r.durationMin ?? '', distanceKm: r.distanceKm ?? '' });
+      addCardioCard({ name, imageUrl, durationMin: r.durationMin ?? '', distanceKm: r.distanceKm ?? '', inclinePct: r.inclinePct ?? '' });
     } else {
       const sets = g.rows.map((r) => ({ weight: r.weight ?? '', weightPartner: r.weightPartner ?? '', reps: r.reps ?? '' }));
       addStrengthCard({ name, imageUrl, sets });
@@ -282,32 +282,43 @@ function renumberSets(setsEl) {
   $$('.set-row .set-index', setsEl).forEach((el, i) => (el.textContent = i + 1));
 }
 
-function addStrengthCard(data = null) {
+function addStrengthCard(data = null, { prepend = false } = {}) {
   const node = $('#strength-template').content.firstElementChild.cloneNode(true);
   const setsEl = node.querySelector('.sets');
   if (data?.imageUrl) node.dataset.imageUrl = data.imageUrl;
   buildExPicker(node, 'strength', data?.name);
-  node.querySelector('.add-set').addEventListener('click', () => { addSetRow(setsEl); persistActive(); });
+  node.querySelector('.add-set').addEventListener('click', () => {
+    // Nova série copia os valores da anterior (mais rápido de registar).
+    const rows = $$('.set-row', setsEl);
+    const last = rows[rows.length - 1];
+    addSetRow(setsEl, last ? {
+      weight: last.querySelector('.set-weight').value,
+      weightPartner: last.querySelector('.set-weight-partner').value,
+      reps: last.querySelector('.set-reps').value,
+    } : {});
+    persistActive();
+  });
   node.querySelector('.remove-exercise').addEventListener('click', () => { node.remove(); persistActive(); });
   const sets = data?.sets?.length ? data.sets : [{}];
   sets.forEach((s) => addSetRow(setsEl, s));
-  exercisesEl.appendChild(node);
+  if (prepend) exercisesEl.prepend(node); else exercisesEl.appendChild(node);
   if (!data) node.querySelector('.ex-select').focus();
 }
 
-function addCardioCard(data = null) {
+function addCardioCard(data = null, { prepend = false } = {}) {
   const node = $('#cardio-template').content.firstElementChild.cloneNode(true);
   if (data?.imageUrl) node.dataset.imageUrl = data.imageUrl;
   buildExPicker(node, 'cardio', data?.name);
   node.querySelector('.cardio-duration').value = data?.durationMin ?? '';
   node.querySelector('.cardio-distance').value = data?.distanceKm ?? '';
+  node.querySelector('.cardio-incline').value = data?.inclinePct ?? '';
   node.querySelector('.remove-exercise').addEventListener('click', () => { node.remove(); persistActive(); });
-  exercisesEl.appendChild(node);
+  if (prepend) exercisesEl.prepend(node); else exercisesEl.appendChild(node);
   if (!data) node.querySelector('.ex-select').focus();
 }
 
-$('#add-strength').addEventListener('click', () => { addStrengthCard(); persistActive(); });
-$('#add-cardio').addEventListener('click', () => { addCardioCard(); persistActive(); });
+$('#add-strength').addEventListener('click', () => { addStrengthCard(null, { prepend: true }); persistActive(); });
+$('#add-cardio').addEventListener('click', () => { addCardioCard(null, { prepend: true }); persistActive(); });
 // Persiste a cada tecla dentro dos exercícios
 exercisesEl.addEventListener('input', persistActive);
 $('#workout-notes').addEventListener('input', persistActive);
@@ -336,6 +347,7 @@ function readExercisesFromDOM() {
       kind, name, imageUrl,
       durationMin: card.querySelector('.cardio-duration').value,
       distanceKm: card.querySelector('.cardio-distance').value,
+      inclinePct: card.querySelector('.cardio-incline').value,
     };
   });
 }
@@ -403,8 +415,9 @@ $('#finish-btn').addEventListener('click', async (e) => {
     } else {
       const dur = parseFloat(ex.durationMin);
       const dist = parseFloat(ex.distanceKm);
+      const inc = parseFloat(ex.inclinePct);
       if (!dur && !dist) continue;
-      entries.push({ name, kind: 'cardio', muscleGroup: 'cardio', imageUrl: ex.imageUrl || null, rows: [{ durationMin: dur || null, distanceKm: dist || null }] });
+      entries.push({ name, kind: 'cardio', muscleGroup: 'cardio', imageUrl: ex.imageUrl || null, rows: [{ durationMin: dur || null, distanceKm: dist || null, inclinePct: inc || null }] });
     }
   }
 
@@ -528,6 +541,7 @@ function exerciseLine(g, partner) {
     const parts = [];
     if (r.durationMin) parts.push(`${fmtNum(r.durationMin)} min`);
     if (r.distanceKm) parts.push(`${fmtNum(r.distanceKm)} km`);
+    if (r.inclinePct) parts.push(`${fmtNum(r.inclinePct)}% incl.`);
     return `<div class="exercise-line">
       <div class="ex-title">${lead} ${escapeHtml(g.exercise.name)}</div>
       <div class="ex-sets">${parts.join(' · ') || '—'}</div>
