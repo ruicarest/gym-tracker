@@ -261,6 +261,7 @@ function buildExPicker(node, kind, dataName) {
     const src = node.querySelector('.ex-thumb').getAttribute('src');
     if (src) openExerciseDetail(src, exNameOf(node));
   });
+  node.querySelector('.collapse-btn').addEventListener('click', () => toggleDone(node));
   updateCardImage(node);
 }
 
@@ -282,6 +283,45 @@ function renumberSets(setsEl) {
   $$('.set-row .set-index', setsEl).forEach((el, i) => (el.textContent = i + 1));
 }
 
+// Resumo de um cartão (para o estado "concluído/colapsado").
+function exSummary(card) {
+  if (card.dataset.kind === 'cardio') {
+    const parts = [];
+    const d = card.querySelector('.cardio-duration').value;
+    const k = card.querySelector('.cardio-distance').value;
+    const i = card.querySelector('.cardio-incline').value;
+    if (d) parts.push(`${d} min`);
+    if (k) parts.push(`${k} km`);
+    if (i) parts.push(`${i}%`);
+    return parts.join(' · ') || '—';
+  }
+  const partner = document.body.classList.contains('partner-on');
+  const sets = $$('.set-row', card).map((row) => {
+    const r = row.querySelector('.set-reps').value;
+    if (!r) return null;
+    const w = row.querySelector('.set-weight').value || 0;
+    const wp = row.querySelector('.set-weight-partner').value;
+    return partner && wp !== '' ? `${w}/${wp}×${r}` : `${w}×${r}`;
+  }).filter(Boolean);
+  return sets.join(' · ') || '—';
+}
+function markDone(card) {
+  card.classList.add('done');
+  card.querySelector('.ex-done-summary').textContent = exSummary(card);
+  const b = card.querySelector('.collapse-btn');
+  b.textContent = '✏️'; b.title = 'Reabrir';
+}
+function toggleDone(card) {
+  if (card.classList.contains('done')) {
+    card.classList.remove('done');
+    const b = card.querySelector('.collapse-btn');
+    b.textContent = '✔️'; b.title = 'Concluir exercício';
+  } else {
+    markDone(card);
+  }
+  persistActive();
+}
+
 function addStrengthCard(data = null, { prepend = false } = {}) {
   const node = $('#strength-template').content.firstElementChild.cloneNode(true);
   const setsEl = node.querySelector('.sets');
@@ -301,6 +341,7 @@ function addStrengthCard(data = null, { prepend = false } = {}) {
   node.querySelector('.remove-exercise').addEventListener('click', () => { node.remove(); persistActive(); });
   const sets = data?.sets?.length ? data.sets : [{}];
   sets.forEach((s) => addSetRow(setsEl, s));
+  if (data?.done) markDone(node);
   if (prepend) exercisesEl.prepend(node); else exercisesEl.appendChild(node);
   if (!data) node.querySelector('.ex-select').focus();
 }
@@ -313,6 +354,7 @@ function addCardioCard(data = null, { prepend = false } = {}) {
   node.querySelector('.cardio-distance').value = data?.distanceKm ?? '';
   node.querySelector('.cardio-incline').value = data?.inclinePct ?? '';
   node.querySelector('.remove-exercise').addEventListener('click', () => { node.remove(); persistActive(); });
+  if (data?.done) markDone(node);
   if (prepend) exercisesEl.prepend(node); else exercisesEl.appendChild(node);
   if (!data) node.querySelector('.ex-select').focus();
 }
@@ -335,16 +377,17 @@ function readExercisesFromDOM() {
     const newInput = card.querySelector('.ex-name-new');
     const name = sel.value === '__new__' ? newInput.value : sel.value;
     const imageUrl = card.dataset.imageUrl || '';
+    const done = card.classList.contains('done');
     if (kind === 'strength') {
       const sets = $$('.set-row', card).map((row) => ({
         weight: row.querySelector('.set-weight').value,
         weightPartner: row.querySelector('.set-weight-partner').value,
         reps: row.querySelector('.set-reps').value,
       }));
-      return { kind, name, imageUrl, sets };
+      return { kind, name, imageUrl, done, sets };
     }
     return {
-      kind, name, imageUrl,
+      kind, name, imageUrl, done,
       durationMin: card.querySelector('.cardio-duration').value,
       distanceKm: card.querySelector('.cardio-distance').value,
       inclinePct: card.querySelector('.cardio-incline').value,

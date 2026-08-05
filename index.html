@@ -110,12 +110,12 @@
 
       <!-- Corpo da sessão a decorrer -->
       <div id="active-body" hidden>
-        <div id="exercises" class="exercises"></div>
-
         <div class="add-row">
           <button type="button" id="add-strength" class="btn ghost">🏋️ + Força</button>
           <button type="button" id="add-cardio" class="btn ghost">🏃 + Cardio</button>
         </div>
+
+        <div id="exercises" class="exercises"></div>
 
         <label class="field">
           <span>Notas (opcional)</span>
@@ -182,10 +182,12 @@
           <button type="button" class="pick-image btn ghost sm" hidden>🔍 Escolher imagem</button>
         </div>
         <img class="ex-thumb" alt="" hidden />
+        <button type="button" class="icon-btn collapse-btn" title="Concluir exercício">✔️</button>
         <button type="button" class="icon-btn remove-exercise" title="Remover exercício">✕</button>
       </div>
       <div class="sets"></div>
       <button type="button" class="btn ghost sm add-set">+ série</button>
+      <div class="ex-done-summary"></div>
     </div>
   </template>
 
@@ -227,6 +229,7 @@
           <button type="button" class="pick-image btn ghost sm" hidden>🔍 Escolher imagem</button>
         </div>
         <img class="ex-thumb" alt="" hidden />
+        <button type="button" class="icon-btn collapse-btn" title="Concluir exercício">✔️</button>
         <button type="button" class="icon-btn remove-exercise" title="Remover exercício">✕</button>
       </div>
       <div class="cardio-fields">
@@ -243,6 +246,7 @@
           <span class="wlabel">%</span>
         </label>
       </div>
+      <div class="ex-done-summary"></div>
     </div>
   </template>
 

@@ -228,6 +228,19 @@ textarea { resize: vertical; }
 .cardio-fields { display: flex; gap: 8px; }
 .cardio-fields .mini { flex: 1; }
 
+/* ---------- Concluir / colapsar exercício ---------- */
+.collapse-btn { color: var(--accent); }
+.exercise-card.done { opacity: 0.9; }
+.exercise-card.done .sets,
+.exercise-card.done .add-set,
+.exercise-card.done .cardio-fields,
+.exercise-card.done .pick-image,
+.exercise-card.done .ex-name-new { display: none; }
+.exercise-card.done .ex-select { pointer-events: none; opacity: 0.7; }
+.exercise-card.done .collapse-btn { color: var(--muted); }
+.ex-done-summary { display: none; }
+.exercise-card.done .ex-done-summary { display: block; color: var(--muted); font-size: 0.85rem; padding: 2px 2px 0; }
+
 /* ---------- Imagem do exercício ---------- */
 .ex-thumb {
   width: 46px; height: 46px; flex: none;
