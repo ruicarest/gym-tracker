@@ -16,9 +16,13 @@ function prettyDate(iso) {
   if (!iso) return '';
   return dateFmt.format(new Date(iso + 'T00:00:00')).replace('.', '');
 }
+// Converte input do utilizador (aceita vírgula) → número.
+function num(v) {
+  return parseFloat(String(v ?? '').replace(',', '.'));
+}
 function fmtNum(n) {
   const v = Number(n) || 0;
-  return Number.isInteger(v) ? String(v) : v.toFixed(1);
+  return Number.isInteger(v) ? String(v) : v.toFixed(1).replace('.', ',');
 }
 function plural(n, one, many) {
   return `${n} ${n === 1 ? one : many}`;
@@ -466,16 +470,16 @@ $('#finish-btn').addEventListener('click', async (e) => {
         const reps = parseInt(s.reps, 10);
         if (!reps || reps <= 0) continue;
         let weight = null, weightPartner = null;
-        if (fw === 'partner') weightPartner = parseFloat(s.weightPartner) || 0;
-        else if (fw === 'me') weight = parseFloat(s.weight) || 0;
-        else { weight = parseFloat(s.weight) || 0; weightPartner = parseFloat(s.weightPartner) || null; }
+        if (fw === 'partner') weightPartner = num(s.weightPartner) || 0;
+        else if (fw === 'me') weight = num(s.weight) || 0;
+        else { weight = num(s.weight) || 0; weightPartner = num(s.weightPartner) || null; }
         rows.push({ weight, weightPartner, reps, forWho: fw });
       }
       if (rows.length) entries.push({ name, kind: 'strength', imageUrl: ex.imageUrl || null, rows });
     } else {
-      const dur = parseFloat(ex.durationMin);
-      const dist = parseFloat(ex.distanceKm);
-      const inc = parseFloat(ex.inclinePct);
+      const dur = num(ex.durationMin);
+      const dist = num(ex.distanceKm);
+      const inc = num(ex.inclinePct);
       if (!dur && !dist) continue;
       const fw = partnerOn ? (ex.forWho || 'both') : null;
       entries.push({ name, kind: 'cardio', muscleGroup: 'cardio', imageUrl: ex.imageUrl || null, rows: [{ durationMin: dur || null, distanceKm: dist || null, inclinePct: inc || null, forWho: fw }] });
