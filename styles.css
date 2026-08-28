@@ -66,8 +66,8 @@ main { padding: 16px; }
 .view { animation: fade 0.2s ease; }
 @keyframes fade { from { opacity: 0; transform: translateY(4px); } to { opacity: 1; transform: none; } }
 
-.row { display: flex; gap: 12px; flex-wrap: wrap; }
-.row .field { flex: 1 1 140px; min-width: 0; }
+/* Data / Tipo empilhados — o date picker nativo do iOS transbordava lado a lado. */
+.row { display: block; }
 .row .field input { min-width: 0; }
 
 .field { display: flex; flex-direction: column; gap: 6px; margin-bottom: 16px; }
