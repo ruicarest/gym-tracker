@@ -66,9 +66,10 @@ main { padding: 16px; }
 .view { animation: fade 0.2s ease; }
 @keyframes fade { from { opacity: 0; transform: translateY(4px); } to { opacity: 1; transform: none; } }
 
-/* Data / Tipo empilhados — o date picker nativo do iOS transbordava lado a lado. */
-.row { display: block; }
-.row .field input { min-width: 0; }
+.row { display: flex; gap: 12px; }
+.row .field { flex: 1 1 0; min-width: 0; }
+/* iOS: appearance:none faz o input de data respeitar a largura (senão transborda). */
+.row input[type="date"] { -webkit-appearance: none; appearance: none; text-align: left; }
 
 .field { display: flex; flex-direction: column; gap: 6px; margin-bottom: 16px; }
 .field > span { font-size: 0.8rem; color: var(--muted); font-weight: 600; }
@@ -209,7 +210,7 @@ textarea { resize: vertical; }
 }
 .weights { flex: 1; min-width: 0; }
 .wcaps { display: none; }
-.partner-on .wcaps { display: flex; gap: 6px; margin-bottom: 3px; }
+.partner-on .sets .set-row:first-child .wcaps { display: flex; gap: 6px; margin-bottom: 3px; }
 .wcaps span { flex: 1; font-size: 0.62rem; font-weight: 700; color: var(--muted); text-align: center; text-transform: uppercase; letter-spacing: 0.03em; }
 .wcaps .partner-name { color: var(--cardio); }
 .winputs { display: flex; gap: 6px; }
@@ -452,6 +453,15 @@ body:not(.partner-on) .for-who { display: none; }
 
 /* ---------- Misc ---------- */
 .empty { text-align: center; color: var(--muted); padding: 40px 20px; line-height: 1.6; }
+
+/* ---------- Ecrã inicial (landing) ---------- */
+.idle-hero { text-align: center; margin: 8px 0 22px; }
+.idle-hero-title { font-size: 1.5rem; font-weight: 800; letter-spacing: -0.01em; }
+.idle-hero-sub { font-size: 0.9rem; color: var(--muted); margin-top: 6px; }
+#idle-summary { margin-top: 24px; }
+.idle-hint { text-align: center; color: var(--muted); font-size: 0.9rem; padding: 14px; background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); }
+body.workout-active .idle-hero,
+body.workout-active #idle-summary { display: none; }
 .toast {
   position: fixed;
   bottom: calc(88px + env(safe-area-inset-bottom));

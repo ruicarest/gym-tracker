@@ -123,6 +123,7 @@ function showActive(on) {
   $('#start-btn').hidden = on;
   $('#timer-active').hidden = !on;
   $('#active-body').hidden = !on;
+  document.body.classList.toggle('workout-active', on);
 }
 
 function startSession(restoredStartedAt) {
@@ -193,6 +194,7 @@ function endSession() {
   $('#finish-btn').textContent = '⏹️ Terminar treino';
   $('#cancel-btn').textContent = 'Cancelar treino';
   showActive(false);
+  renderIdleSummary();
 }
 
 // ------------------------------------------------------------
@@ -530,6 +532,30 @@ $('#finish-btn').addEventListener('click', async (e) => {
 // ------------------------------------------------------------
 function card(value, label) {
   return `<div class="card"><div class="big-num">${value}</div><div class="lbl">${label}</div></div>`;
+}
+
+// Resumo no ecrã inicial (preenche o espaço + é útil).
+async function renderIdleSummary() {
+  const el = $('#idle-summary');
+  if (!el) return;
+  let ws;
+  try { ws = await db.listWorkouts(); } catch { el.innerHTML = ''; return; }
+  if (!ws.length) {
+    el.innerHTML = `<p class="idle-hint">Ainda sem treinos — bora fazer o primeiro! 💪</p>`;
+    return;
+  }
+  const today = new Date(); today.setHours(0, 0, 0, 0);
+  const thisMonth = ws.filter((w) => {
+    const d = new Date(w.date + 'T00:00:00');
+    return d.getMonth() === today.getMonth() && d.getFullYear() === today.getFullYear();
+  }).length;
+  const days = Math.round((today - new Date(ws[0].date + 'T00:00:00')) / 86400000);
+  const lastTxt = days <= 0 ? 'Hoje' : days === 1 ? 'Ontem' : `Há ${days}d`;
+  el.innerHTML = `<div class="summary-cards">
+    ${card(thisMonth, 'Este mês')}
+    ${card(lastTxt, 'Último treino')}
+    ${card(ws.length, 'Total')}
+  </div>`;
 }
 
 async function renderHistory() {
@@ -1016,6 +1042,7 @@ async function bootApp() {
   applyPartnerUI();
   await refreshExerciseLists();
   restoreActive(); // retoma um treino em curso, se existir
+  renderIdleSummary();
 }
 
 function setBadge() {
